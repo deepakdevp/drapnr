@@ -1,22 +1,25 @@
 // =============================================================================
-// Drapnr — Main 3D Avatar Scene
+// Drapnr -- Main 3D Avatar Scene
 // =============================================================================
 
-import React, { Suspense, useState, useCallback, useMemo } from 'react';
+import React, { Suspense, useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
-  Image,
-  TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { Canvas } from '@react-three/fiber/native';
 import * as THREE from 'three';
-import { Avatar } from './Avatar';
+import { Avatar, AvatarLighting } from './Avatar';
 import { SceneControls, type SceneControlState } from './SceneControls';
 import { LoadingAvatar } from './LoadingAvatar';
+import { FallbackViewer } from './FallbackViewer';
+import { useAvatarModel } from '../../hooks/useAvatarModel';
 import type { Garment, GarmentCategory } from '@/types';
+
+// Import model manifest for camera height lookup
+import modelManifest from '../../assets/models/model-manifest.json';
 
 // -----------------------------------------------------------------------------
 // Feature flag: toggle between 3D and 2D fallback
@@ -97,36 +100,82 @@ class SceneErrorBoundary extends React.Component<
 }
 
 // -----------------------------------------------------------------------------
+// Camera height helper
+// -----------------------------------------------------------------------------
+
+type ManifestEntry = { file: string; height: number; label: string };
+const manifest = modelManifest as Record<string, ManifestEntry>;
+
+function getCameraPositionForTemplate(templateKey: string): [number, number, number] {
+  const entry = manifest[templateKey];
+  const height = entry?.height ?? 1.7;
+  // Position camera at roughly chest height, pulled back based on model height
+  const cameraY = height * 0.3;
+  const cameraZ = height * 2.0;
+  return [0, cameraY, cameraZ];
+}
+
+// -----------------------------------------------------------------------------
+// FPS Counter (dev mode only)
+// -----------------------------------------------------------------------------
+
+function useFpsCounter() {
+  const [fps, setFps] = useState(0);
+  const framesRef = useRef(0);
+  const lastTimeRef = useRef(performance.now());
+
+  useEffect(() => {
+    if (!__DEV__) return;
+
+    const interval = setInterval(() => {
+      const now = performance.now();
+      const elapsed = now - lastTimeRef.current;
+      if (elapsed > 0) {
+        setFps(Math.round((framesRef.current * 1000) / elapsed));
+      }
+      framesRef.current = 0;
+      lastTimeRef.current = now;
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const tick = useCallback(() => {
+    framesRef.current += 1;
+  }, []);
+
+  return { fps, tick };
+}
+
+// -----------------------------------------------------------------------------
 // 3D Scene Internals (rendered inside Canvas)
 // -----------------------------------------------------------------------------
 
 interface SceneContentProps {
-  bodyTemplate: string;
+  modelPath: string;
   topTexture: string | null;
   bottomTexture: string | null;
   shoesTexture: string | null;
+  onFrame?: () => void;
 }
 
 function SceneContent({
-  bodyTemplate,
+  modelPath,
   topTexture,
   bottomTexture,
   shoesTexture,
+  onFrame,
 }: SceneContentProps): React.JSX.Element {
+  // Tick FPS counter on each frame via useFrame
+  const { useFrame: useR3FFrame } = require('@react-three/fiber/native');
+  useR3FFrame(() => {
+    onFrame?.();
+  });
+
   return (
     <>
       {/* Lighting */}
-      <ambientLight intensity={0.6} />
-      <directionalLight
-        position={[5, 8, 5]}
-        intensity={1.2}
-        castShadow
-        shadow-mapSize-width={1024}
-        shadow-mapSize-height={1024}
-        shadow-camera-far={20}
-        shadow-camera-near={0.1}
-      />
-      <directionalLight position={[-3, 4, -2]} intensity={0.3} />
+      <AvatarLighting />
 
       {/* Ground plane with shadow */}
       <mesh
@@ -140,7 +189,7 @@ function SceneContent({
 
       {/* Avatar model */}
       <Avatar
-        modelPath={bodyTemplate}
+        modelPath={modelPath}
         topTexture={topTexture}
         bottomTexture={bottomTexture}
         shoesTexture={shoesTexture}
@@ -158,7 +207,17 @@ function useWebGLContextHandler() {
 
   const onCreated = useCallback(
     (state: { gl: THREE.WebGLRenderer }) => {
-      const canvas = state.gl.domElement;
+      const gl = state.gl;
+
+      // Configure GL context for React Native / expo-gl
+      gl.setPixelRatio(1); // Mobile: keep pixel ratio at 1 for performance
+      gl.outputColorSpace = THREE.SRGBColorSpace;
+      gl.toneMapping = THREE.ACESFilmicToneMapping;
+      gl.toneMappingExposure = 1.0;
+      gl.shadowMap.enabled = true;
+      gl.shadowMap.type = THREE.PCFSoftShadowMap;
+
+      const canvas = gl.domElement;
 
       const handleLost = (event: Event) => {
         event.preventDefault();
@@ -171,67 +230,19 @@ function useWebGLContextHandler() {
         setContextLost(false);
       };
 
-      canvas.addEventListener('webglcontextlost', handleLost);
-      canvas.addEventListener('webglcontextrestored', handleRestored);
+      // On native, domElement may not support addEventListener (expo-gl)
+      // Wrap in try/catch to avoid crashes
+      try {
+        canvas?.addEventListener?.('webglcontextlost', handleLost);
+        canvas?.addEventListener?.('webglcontextrestored', handleRestored);
+      } catch {
+        // expo-gl does not always expose standard event listeners
+      }
     },
     [],
   );
 
   return { contextLost, onCreated };
-}
-
-// -----------------------------------------------------------------------------
-// 2D Fallback Grid
-// -----------------------------------------------------------------------------
-
-interface FallbackGridProps {
-  garments?: Garment[];
-  topTexture: string | null;
-  bottomTexture: string | null;
-  shoesTexture: string | null;
-  onSelectGarment?: (id: string, category: GarmentCategory) => void;
-}
-
-function FallbackGrid({
-  garments,
-  topTexture,
-  bottomTexture,
-  shoesTexture,
-}: FallbackGridProps): React.JSX.Element {
-  const textures = useMemo(
-    () =>
-      [
-        { label: 'Top', url: topTexture },
-        { label: 'Bottom', url: bottomTexture },
-        { label: 'Shoes', url: shoesTexture },
-      ].filter((t) => t.url != null) as { label: string; url: string }[],
-    [topTexture, bottomTexture, shoesTexture],
-  );
-
-  if (textures.length === 0) {
-    return (
-      <View style={fallbackStyles.emptyFallback}>
-        <Text style={fallbackStyles.emptyText}>
-          Select garments to preview your outfit
-        </Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={fallbackStyles.gridContainer}>
-      {textures.map((item) => (
-        <View key={item.label} style={fallbackStyles.gridItem}>
-          <Image
-            source={{ uri: item.url }}
-            style={fallbackStyles.gridImage}
-            resizeMode="cover"
-          />
-          <Text style={fallbackStyles.gridLabel}>{item.label}</Text>
-        </View>
-      ))}
-    </View>
-  );
 }
 
 // -----------------------------------------------------------------------------
@@ -252,22 +263,52 @@ export function AvatarScene({
     zoom: 1,
   });
 
-  // 2D fallback mode
+  // Resolve model asset path via hook
+  const { modelPath, isLoading: modelLoading, error: modelError } = useAvatarModel(bodyTemplate);
+
+  // Camera positioning based on body template
+  const cameraPosition = useMemo(
+    () => getCameraPositionForTemplate(bodyTemplate),
+    [bodyTemplate],
+  );
+
+  // FPS counter (dev only)
+  const { fps, tick } = useFpsCounter();
+
+  // ------ 2D fallback mode (feature flag OFF) ------
   if (!USE_3D) {
     return (
       <View style={styles.container}>
-        <FallbackGrid
-          garments={garments}
+        <FallbackViewer
           topTexture={topTexture}
           bottomTexture={bottomTexture}
           shoesTexture={shoesTexture}
-          onSelectGarment={onSelectGarment}
         />
       </View>
     );
   }
 
-  // Context lost state
+  // ------ Model loading error -> fall back to 2D ------
+  if (modelError) {
+    return (
+      <View style={styles.container}>
+        <FallbackViewer
+          topTexture={topTexture}
+          bottomTexture={bottomTexture}
+          shoesTexture={shoesTexture}
+        />
+        {__DEV__ && (
+          <View style={fallbackStyles.devError}>
+            <Text style={fallbackStyles.devErrorText}>
+              Model error: {modelError}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // ------ Context lost state ------
   if (contextLost) {
     return (
       <View style={styles.container}>
@@ -283,30 +324,50 @@ export function AvatarScene({
 
   return (
     <View style={styles.container}>
-      <SceneErrorBoundary>
+      <SceneErrorBoundary
+        fallback={
+          <FallbackViewer
+            topTexture={topTexture}
+            bottomTexture={bottomTexture}
+            shoesTexture={shoesTexture}
+          />
+        }
+      >
         <SceneControls onControlChange={setControlState}>
           <Suspense fallback={<LoadingAvatar />}>
-            <Canvas
-              shadows
-              camera={{ position: [0, 0.5, 3.5], fov: 40 }}
-              onCreated={onCreated as any}
-              gl={{
-                antialias: true,
-                alpha: true,
-                powerPreference: 'high-performance',
-              }}
-              style={styles.canvas}
-            >
-              <SceneContent
-                bodyTemplate={bodyTemplate}
-                topTexture={topTexture}
-                bottomTexture={bottomTexture}
-                shoesTexture={shoesTexture}
-              />
-            </Canvas>
+            {modelPath ? (
+              <Canvas
+                shadows
+                camera={{ position: cameraPosition, fov: 40 }}
+                onCreated={onCreated as any}
+                gl={{
+                  antialias: true,
+                  alpha: true,
+                  powerPreference: 'high-performance',
+                }}
+                style={styles.canvas}
+              >
+                <SceneContent
+                  modelPath={modelPath}
+                  topTexture={topTexture}
+                  bottomTexture={bottomTexture}
+                  shoesTexture={shoesTexture}
+                  onFrame={__DEV__ ? tick : undefined}
+                />
+              </Canvas>
+            ) : (
+              <LoadingAvatar />
+            )}
           </Suspense>
         </SceneControls>
       </SceneErrorBoundary>
+
+      {/* Dev-only FPS overlay */}
+      {__DEV__ && fps > 0 && (
+        <View style={styles.fpsOverlay} pointerEvents="none">
+          <Text style={styles.fpsText}>{fps} FPS</Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -322,6 +383,21 @@ const styles = StyleSheet.create({
   },
   canvas: {
     flex: 1,
+  },
+  fpsOverlay: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  fpsText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#00FF88',
+    fontVariant: ['tabular-nums'],
   },
 });
 
@@ -347,42 +423,18 @@ const fallbackStyles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  // 2D fallback
-  gridContainer: {
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    gap: 16,
+  devError: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    right: 8,
+    backgroundColor: 'rgba(255,0,0,0.15)',
+    borderRadius: 8,
+    padding: 8,
   },
-  gridItem: {
-    alignItems: 'center',
-    gap: 6,
-  },
-  gridImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 12,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  gridLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  emptyFallback: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
-    textAlign: 'center',
+  devErrorText: {
+    fontSize: 11,
+    color: '#CC0000',
   },
 });
 

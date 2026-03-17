@@ -1,0 +1,22 @@
+{
+  "male_slim": {
+    "file": "male_slim.glb",
+    "height": 1.8,
+    "label": "Male - Slim"
+  },
+  "male_avg": {
+    "file": "male_avg.glb",
+    "height": 1.75,
+    "label": "Male - Average"
+  },
+  "female_slim": {
+    "file": "female_slim.glb",
+    "height": 1.65,
+    "label": "Female - Slim"
+  },
+  "female_avg": {
+    "file": "female_avg.glb",
+    "height": 1.62,
+    "label": "Female - Average"
+  }
+}

@@ -28,6 +28,9 @@ export type {
 export { LoadingAvatar } from './LoadingAvatar';
 export type { LoadingAvatarProps } from './LoadingAvatar';
 
+export { FallbackViewer } from './FallbackViewer';
+export type { FallbackViewerProps } from './FallbackViewer';
+
 export { AvatarScreenshot } from './AvatarScreenshot';
 export type { AvatarScreenshotHandle, AvatarScreenshotProps } from './AvatarScreenshot';
 
