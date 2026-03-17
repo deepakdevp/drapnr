@@ -1,0 +1,45 @@
+[project]
+name = "drapnr-processing"
+version = "0.1.0"
+description = "Drapnr GPU processing server for garment segmentation and virtual try-on"
+requires-python = ">=3.11"
+readme = "README.md"
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.34.0",
+    "python-multipart>=0.0.20",
+    "httpx>=0.28.0",
+    "opencv-python-headless>=4.11.0",
+    "numpy>=2.2.0",
+    "Pillow>=11.1.0",
+    "torch>=2.6.0",
+    "segment-anything-2>=0.2.0",
+    "supabase>=2.11.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.7.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.25.0",
+    "ruff>=0.9.0",
+    "mypy>=1.14.0",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[build-system]
+requires = ["setuptools>=75.0", "wheel"]
+build-backend = "setuptools.build_meta"
