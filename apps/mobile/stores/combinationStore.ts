@@ -1,9 +1,18 @@
 // =============================================================================
 // Combination Store (Zustand) — Mix & Match
 // =============================================================================
+// Real Supabase queries for saving, fetching, and deleting garment
+// combinations. Manages the current mix & match session state.
+// =============================================================================
 
 import { create } from 'zustand';
 
+import {
+  fetchCombinations as fetchCombinationsApi,
+  insertCombination,
+  deleteCombination as deleteCombinationApi,
+} from '../services/supabase';
+import { useAuthStore } from './authStore';
 import type { Combination } from '../types';
 
 // -----------------------------------------------------------------------------
@@ -20,46 +29,25 @@ interface CombinationState {
   combinations: Combination[];
   currentCombo: CurrentCombo;
   isLoading: boolean;
+  error: string | null;
 }
 
 interface CombinationActions {
   fetchCombinations: () => Promise<void>;
-  saveCombination: (name: string) => Promise<Combination>;
-  deleteCombination: (id: string) => void;
+  saveCombination: (name: string, thumbnailUrl?: string | null) => Promise<Combination>;
+  deleteCombination: (id: string) => Promise<void>;
   setCurrentTop: (id: string) => void;
   setCurrentBottom: (id: string) => void;
   setCurrentShoes: (id: string) => void;
   resetCurrentCombo: () => void;
+  clearError: () => void;
 }
 
 type CombinationStore = CombinationState & CombinationActions;
 
 // -----------------------------------------------------------------------------
-// Mock Data
+// Constants
 // -----------------------------------------------------------------------------
-
-const MOCK_COMBINATIONS: Combination[] = [
-  {
-    id: 'combo_001',
-    userId: 'usr_demo',
-    name: 'Smart Casual Mix',
-    topId: 'garment_001',
-    bottomId: 'garment_005',
-    shoesId: 'garment_006',
-    thumbnailUrl: null,
-    createdAt: '2026-03-14T10:00:00Z',
-  },
-  {
-    id: 'combo_002',
-    userId: 'usr_demo',
-    name: 'Relaxed Sunday',
-    topId: 'garment_007',
-    bottomId: 'garment_002',
-    shoesId: 'garment_009',
-    thumbnailUrl: null,
-    createdAt: '2026-03-15T16:30:00Z',
-  },
-];
 
 const EMPTY_COMBO: CurrentCombo = {
   topId: null,
@@ -71,7 +59,9 @@ const EMPTY_COMBO: CurrentCombo = {
 // Helpers
 // -----------------------------------------------------------------------------
 
-const delay = (ms = 600) => new Promise<void>((r) => setTimeout(r, ms));
+function getUserId(): string | null {
+  return useAuthStore.getState().user?.id ?? null;
+}
 
 // -----------------------------------------------------------------------------
 // Store
@@ -82,49 +72,113 @@ export const useCombinationStore = create<CombinationStore>((set, get) => ({
   combinations: [],
   currentCombo: { ...EMPTY_COMBO },
   isLoading: false,
+  error: null,
 
   // -- Actions ----------------------------------------------------------------
 
+  clearError: () => set({ error: null }),
+
   fetchCombinations: async () => {
-    set({ isLoading: true });
-    await delay();
-    set({ combinations: [...MOCK_COMBINATIONS], isLoading: false });
+    const userId = getUserId();
+    if (!userId) {
+      set({ error: 'Not authenticated' });
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      const result = await fetchCombinationsApi(userId);
+
+      if (result.error) {
+        set({ isLoading: false, error: result.error.message });
+        return;
+      }
+
+      set({ combinations: result.data ?? [], isLoading: false });
+    } catch (err: any) {
+      set({
+        isLoading: false,
+        error: err.message ?? 'Failed to load combinations.',
+      });
+    }
   },
 
-  saveCombination: async (name) => {
-    set({ isLoading: true });
-    await delay(400);
+  saveCombination: async (name, thumbnailUrl = null) => {
+    const userId = getUserId();
+    if (!userId) {
+      throw new Error('Not authenticated');
+    }
 
     const { currentCombo } = get();
 
     if (!currentCombo.topId || !currentCombo.bottomId || !currentCombo.shoesId) {
-      set({ isLoading: false });
-      throw new Error('Please select a top, bottom, and shoes before saving.');
+      const msg = 'Please select a top, bottom, and shoes before saving.';
+      set({ error: msg });
+      throw new Error(msg);
     }
 
-    const combination: Combination = {
-      id: `combo_${Date.now().toString(36)}`,
-      userId: 'usr_demo',
-      name,
-      topId: currentCombo.topId,
-      bottomId: currentCombo.bottomId,
-      shoesId: currentCombo.shoesId,
-      thumbnailUrl: null,
-      createdAt: new Date().toISOString(),
-    };
+    set({ isLoading: true, error: null });
 
-    set((state) => ({
-      combinations: [combination, ...state.combinations],
-      isLoading: false,
-    }));
+    try {
+      const result = await insertCombination({
+        userId,
+        name,
+        topId: currentCombo.topId,
+        bottomId: currentCombo.bottomId,
+        shoesId: currentCombo.shoesId,
+        thumbnailUrl: thumbnailUrl ?? null,
+      });
 
-    return combination;
+      if (result.error || !result.data) {
+        const msg = result.error?.message ?? 'Failed to save combination.';
+        set({ isLoading: false, error: msg });
+        throw new Error(msg);
+      }
+
+      // Prepend the new combination to the list
+      set((state) => ({
+        combinations: [result.data!, ...state.combinations],
+        isLoading: false,
+      }));
+
+      return result.data;
+    } catch (err: any) {
+      if (get().isLoading) {
+        set({ isLoading: false });
+      }
+      // Re-throw if not already set as error
+      if (!get().error) {
+        set({ error: err.message ?? 'Failed to save combination.' });
+      }
+      throw err;
+    }
   },
 
-  deleteCombination: (id) => {
+  deleteCombination: async (id) => {
+    // Optimistically remove from state
+    const previousCombinations = get().combinations;
     set((state) => ({
       combinations: state.combinations.filter((c) => c.id !== id),
     }));
+
+    try {
+      const result = await deleteCombinationApi(id);
+
+      if (result.error) {
+        // Revert on failure
+        set({
+          combinations: previousCombinations,
+          error: result.error.message,
+        });
+      }
+    } catch (err: any) {
+      // Revert on failure
+      set({
+        combinations: previousCombinations,
+        error: err.message ?? 'Failed to delete combination.',
+      });
+    }
   },
 
   setCurrentTop: (id) => {

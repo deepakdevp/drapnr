@@ -1,114 +1,268 @@
 // =============================================================================
 // Wardrobe Store (Zustand)
 // =============================================================================
+// Real Supabase queries for outfits and garments with pagination,
+// pull-to-refresh, and category filtering.
+// =============================================================================
 
 import { create } from 'zustand';
 
-export interface Garment {
-  id: string;
-  type: 'top' | 'bottom' | 'shoes' | 'accessory';
-  name: string;
-  thumbnailUrl: string | null;
-  color: string;
-}
+import {
+  fetchOutfits as fetchOutfitsApi,
+  fetchGarments as fetchGarmentsApi,
+  fetchGarmentsByCategory as fetchGarmentsByCategoryApi,
+  fetchOutfitById,
+  deleteOutfit as deleteOutfitApi,
+  updateOutfitName as updateOutfitNameApi,
+} from '../services/supabase';
+import { useAuthStore } from './authStore';
+import type { Outfit, Garment, GarmentCategory } from '../types';
 
-export interface Outfit {
-  id: string;
-  name: string;
-  createdAt: string;
-  thumbnailUrl: string | null;
-  garments: Garment[];
-}
+// Re-export types for backward compatibility with consumers that import from this file
+export type { Outfit, Garment } from '../types';
+
+// -----------------------------------------------------------------------------
+// State & Actions
+// -----------------------------------------------------------------------------
+
+const PAGE_SIZE = 20;
 
 interface WardrobeState {
   outfits: Outfit[];
+  garments: Garment[];
   isLoading: boolean;
   isRefreshing: boolean;
-
-  // Actions
-  loadOutfits: () => Promise<void>;
-  refreshOutfits: () => Promise<void>;
-  deleteOutfit: (id: string) => void;
-  updateOutfitName: (id: string, name: string) => void;
+  error: string | null;
+  hasMore: boolean;
+  offset: number;
 }
 
-// ---------------------------------------------------------------------------
-// Mock data
-// ---------------------------------------------------------------------------
+interface WardrobeActions {
+  fetchOutfits: () => Promise<void>;
+  fetchMoreOutfits: () => Promise<void>;
+  refreshOutfits: () => Promise<void>;
+  fetchGarments: (outfitId?: string) => Promise<void>;
+  deleteOutfit: (id: string) => Promise<void>;
+  updateOutfitName: (id: string, name: string) => Promise<void>;
+  getGarmentsByCategory: (category: GarmentCategory) => Promise<Garment[]>;
+  refreshAfterProcessing: (outfitId: string) => Promise<void>;
+  clearError: () => void;
+}
 
-const MOCK_OUTFITS: Outfit[] = [
-  {
-    id: '1',
-    name: 'Casual Friday',
-    createdAt: '2026-03-15',
-    thumbnailUrl: null,
-    garments: [
-      { id: 'g1', type: 'top', name: 'White Tee', thumbnailUrl: null, color: '#FFFFFF' },
-      { id: 'g2', type: 'bottom', name: 'Dark Jeans', thumbnailUrl: null, color: '#1A1A2E' },
-      { id: 'g3', type: 'shoes', name: 'White Sneakers', thumbnailUrl: null, color: '#F5F5F5' },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Date Night',
-    createdAt: '2026-03-14',
-    thumbnailUrl: null,
-    garments: [
-      { id: 'g4', type: 'top', name: 'Black Blazer', thumbnailUrl: null, color: '#212121' },
-      { id: 'g5', type: 'bottom', name: 'Slim Chinos', thumbnailUrl: null, color: '#8B7355' },
-      { id: 'g6', type: 'shoes', name: 'Chelsea Boots', thumbnailUrl: null, color: '#5C4033' },
-    ],
-  },
-  {
-    id: '3',
-    name: 'Gym Session',
-    createdAt: '2026-03-13',
-    thumbnailUrl: null,
-    garments: [
-      { id: 'g7', type: 'top', name: 'Tank Top', thumbnailUrl: null, color: '#FF2D55' },
-      { id: 'g8', type: 'bottom', name: 'Joggers', thumbnailUrl: null, color: '#424242' },
-      { id: 'g9', type: 'shoes', name: 'Running Shoes', thumbnailUrl: null, color: '#3B82F6' },
-    ],
-  },
-  {
-    id: '4',
-    name: 'Summer Vibes',
-    createdAt: '2026-03-12',
-    thumbnailUrl: null,
-    garments: [
-      { id: 'g10', type: 'top', name: 'Linen Shirt', thumbnailUrl: null, color: '#E8DCC8' },
-      { id: 'g11', type: 'bottom', name: 'Shorts', thumbnailUrl: null, color: '#F5F5DC' },
-      { id: 'g12', type: 'shoes', name: 'Sandals', thumbnailUrl: null, color: '#C19A6B' },
-    ],
-  },
-];
+type WardrobeStore = WardrobeState & WardrobeActions;
 
-export const useWardrobeStore = create<WardrobeState>((set) => ({
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
+function getUserId(): string | null {
+  return useAuthStore.getState().user?.id ?? null;
+}
+
+// -----------------------------------------------------------------------------
+// Store
+// -----------------------------------------------------------------------------
+
+export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
   outfits: [],
+  garments: [],
   isLoading: false,
   isRefreshing: false,
+  error: null,
+  hasMore: true,
+  offset: 0,
 
-  loadOutfits: async () => {
+  clearError: () => set({ error: null }),
+
+  fetchOutfits: async () => {
+    const userId = getUserId();
+    if (!userId) {
+      set({ error: 'Not authenticated' });
+      return;
+    }
+
+    set({ isLoading: true, error: null });
+
+    try {
+      const result = await fetchOutfitsApi(userId, { limit: PAGE_SIZE, offset: 0 });
+
+      if (result.error) {
+        set({ isLoading: false, error: result.error.message });
+        return;
+      }
+
+      const outfits = result.data ?? [];
+      set({
+        outfits,
+        isLoading: false,
+        offset: outfits.length,
+        hasMore: outfits.length >= PAGE_SIZE,
+      });
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message ?? 'Failed to load outfits.' });
+    }
+  },
+
+  fetchMoreOutfits: async () => {
+    const { hasMore, isLoading, offset } = get();
+    if (!hasMore || isLoading) return;
+
+    const userId = getUserId();
+    if (!userId) return;
+
     set({ isLoading: true });
-    await new Promise((resolve) => setTimeout(resolve, 600));
-    set({ outfits: MOCK_OUTFITS, isLoading: false });
+
+    try {
+      const result = await fetchOutfitsApi(userId, { limit: PAGE_SIZE, offset });
+
+      if (result.error) {
+        set({ isLoading: false, error: result.error.message });
+        return;
+      }
+
+      const newOutfits = result.data ?? [];
+      set((state) => ({
+        outfits: [...state.outfits, ...newOutfits],
+        isLoading: false,
+        offset: state.offset + newOutfits.length,
+        hasMore: newOutfits.length >= PAGE_SIZE,
+      }));
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message ?? 'Failed to load more outfits.' });
+    }
   },
 
   refreshOutfits: async () => {
-    set({ isRefreshing: true });
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    set({ outfits: MOCK_OUTFITS, isRefreshing: false });
+    const userId = getUserId();
+    if (!userId) return;
+
+    set({ isRefreshing: true, error: null });
+
+    try {
+      const result = await fetchOutfitsApi(userId, { limit: PAGE_SIZE, offset: 0 });
+
+      if (result.error) {
+        set({ isRefreshing: false, error: result.error.message });
+        return;
+      }
+
+      const outfits = result.data ?? [];
+      set({
+        outfits,
+        isRefreshing: false,
+        offset: outfits.length,
+        hasMore: outfits.length >= PAGE_SIZE,
+      });
+    } catch (err: any) {
+      set({ isRefreshing: false, error: err.message ?? 'Failed to refresh outfits.' });
+    }
   },
 
-  deleteOutfit: (id: string) => {
+  fetchGarments: async (outfitId?: string) => {
+    const userId = getUserId();
+    if (!userId) return;
+
+    set({ isLoading: true, error: null });
+
+    try {
+      const result = await fetchGarmentsApi(userId, outfitId);
+
+      if (result.error) {
+        set({ isLoading: false, error: result.error.message });
+        return;
+      }
+
+      set({ garments: result.data ?? [], isLoading: false });
+    } catch (err: any) {
+      set({ isLoading: false, error: err.message ?? 'Failed to load garments.' });
+    }
+  },
+
+  deleteOutfit: async (id: string) => {
+    // Optimistically remove from state
+    const previousOutfits = get().outfits;
     set((state) => ({
       outfits: state.outfits.filter((o) => o.id !== id),
     }));
+
+    try {
+      const result = await deleteOutfitApi(id);
+
+      if (result.error) {
+        // Revert on failure
+        set({ outfits: previousOutfits, error: result.error.message });
+      }
+    } catch (err: any) {
+      // Revert on failure
+      set({ outfits: previousOutfits, error: err.message ?? 'Failed to delete outfit.' });
+    }
   },
 
-  updateOutfitName: (id: string, name: string) => {
+  updateOutfitName: async (id: string, name: string) => {
+    // Optimistically update
+    const previousOutfits = get().outfits;
     set((state) => ({
       outfits: state.outfits.map((o) => (o.id === id ? { ...o, name } : o)),
     }));
+
+    try {
+      const result = await updateOutfitNameApi(id, name);
+
+      if (result.error) {
+        set({ outfits: previousOutfits, error: result.error.message });
+      }
+    } catch (err: any) {
+      set({ outfits: previousOutfits, error: err.message ?? 'Failed to rename outfit.' });
+    }
+  },
+
+  getGarmentsByCategory: async (category: GarmentCategory) => {
+    const userId = getUserId();
+    if (!userId) return [];
+
+    try {
+      const result = await fetchGarmentsByCategoryApi(userId, category);
+
+      if (result.error) {
+        console.error('[wardrobeStore] getGarmentsByCategory error:', result.error.message);
+        return [];
+      }
+
+      return result.data ?? [];
+    } catch (err: any) {
+      console.error('[wardrobeStore] getGarmentsByCategory error:', err.message);
+      return [];
+    }
+  },
+
+  refreshAfterProcessing: async (outfitId: string) => {
+    const userId = getUserId();
+    if (!userId) return;
+
+    try {
+      // Re-fetch the specific outfit
+      const outfitResult = await fetchOutfitById(outfitId);
+      if (outfitResult.data) {
+        set((state) => {
+          const exists = state.outfits.some((o) => o.id === outfitId);
+          const outfits = exists
+            ? state.outfits.map((o) => (o.id === outfitId ? outfitResult.data! : o))
+            : [outfitResult.data!, ...state.outfits];
+          return { outfits };
+        });
+      }
+
+      // Re-fetch garments for this outfit
+      const garmentsResult = await fetchGarmentsApi(userId, outfitId);
+      if (garmentsResult.data) {
+        set((state) => {
+          // Replace garments for this outfit, keep others
+          const otherGarments = state.garments.filter((g) => g.outfitId !== outfitId);
+          return { garments: [...otherGarments, ...garmentsResult.data!] };
+        });
+      }
+    } catch (err: any) {
+      console.error('[wardrobeStore] refreshAfterProcessing error:', err.message);
+    }
   },
 }));
