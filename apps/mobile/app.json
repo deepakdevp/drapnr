@@ -1,0 +1,65 @@
+{
+  "expo": {
+    "name": "Drapnr",
+    "slug": "drapnr",
+    "version": "0.1.0",
+    "scheme": "drapnr",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FF6B6B"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.drapnr.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Drapnr needs camera access to scan your body measurements and try on clothes virtually.",
+        "NSPhotoLibraryUsageDescription": "Drapnr needs photo library access to save your try-on photos."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FF6B6B"
+      },
+      "package": "com.drapnr.app",
+      "permissions": ["CAMERA"]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Drapnr to access your camera for body scanning and virtual try-on."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#FF6B6B"
+        }
+      ],
+      "expo-sensors",
+      "expo-haptics",
+      [
+        "react-native-vision-camera",
+        {
+          "cameraPermissionText": "Drapnr needs camera access for AR try-on.",
+          "enableMicrophonePermission": false
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
