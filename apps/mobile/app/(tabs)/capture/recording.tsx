@@ -1,8 +1,14 @@
+// =============================================================================
+// Recording Screen — Real 360-degree video capture
+// =============================================================================
+// Uses VisionCamera for live preview and frame capture, magnetometer for
+// rotation tracking, and captures frames at ~12-degree intervals.
+// =============================================================================
+
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
-  Easing,
   Platform,
   StatusBar,
   StyleSheet,
@@ -11,81 +17,179 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+} from 'react-native-vision-camera';
+import Svg, { Circle } from 'react-native-svg';
 
-// ── Design tokens ──────────────────────────────────────────────────────────────
+import { useRotationTracking } from '../../../hooks/useRotationTracking';
+import { useFrameCapture } from '../../../hooks/useFrameCapture';
+import { useCaptureStore } from '../../../stores/captureStore';
+
+// ── Design tokens ────────────────────────────────────────────────────────────
 const COLORS = {
   primary: '#FF6B6B',
   background: '#FFFFFF',
   text: '#1A1A2E',
   secondaryText: '#6B7280',
   surface: '#F8F9FA',
+  warning: '#F59E0B',
+  error: '#EF4444',
 } as const;
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
-const RING_SIZE = 80;
-const RING_STROKE = 6;
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ── Prompt cycle ───────────────────────────────────────────────────────────────
+// ── Progress ring dimensions ─────────────────────────────────────────────────
+const RING_SIZE = 100;
+const RING_STROKE = 6;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+// ── Capture settings ─────────────────────────────────────────────────────────
+const CAPTURE_INTERVAL_DEG = 12; // Capture a frame every 12 degrees (~30 frames)
+const AUTO_STOP_DEG = 340; // Auto-stop threshold
+
+// ── Prompt cycle ─────────────────────────────────────────────────────────────
 const PROMPTS = [
   'Walk slowly around the person',
   'Keep the whole body in frame',
+  'Maintain a steady pace',
   'Almost there...',
 ] as const;
 
 const PROMPT_INTERVAL_MS = 4_000;
 
-// ── Component ──────────────────────────────────────────────────────────────────
+// ── AnimatedCircle for SVG ───────────────────────────────────────────────────
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+// ── Component ────────────────────────────────────────────────────────────────
 export default function RecordingScreen(): React.JSX.Element {
   const router = useRouter();
+  const cameraRef = useRef<Camera>(null);
 
-  // Timer
+  // Camera device and permissions
+  const device = useCameraDevice('back');
+  const { hasPermission, requestPermission } = useCameraPermission();
+
+  // Stores
+  const addFrame = useCaptureStore((s) => s.addFrame);
+  const stopRecording = useCaptureStore((s) => s.stopRecording);
+  const startRecording = useCaptureStore((s) => s.startRecording);
+  const updateRotation = useCaptureStore((s) => s.updateRotation);
+
+  // Custom hooks
+  const rotationTracker = useRotationTracking();
+  const { frames, captureFrame, clearFrames } = useFrameCapture(cameraRef);
+
+  // Local state
   const [elapsed, setElapsed] = useState<number>(0);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Prompt cycling
   const [promptIndex, setPromptIndex] = useState<number>(0);
+  const [isRecording, setIsRecording] = useState<boolean>(false);
+  const [permissionDenied, setPermissionDenied] = useState<boolean>(false);
+
+  // Animations
   const promptOpacity = useRef(new Animated.Value(1)).current;
+  const tiltPulse = useRef(new Animated.Value(1)).current;
 
-  // Progress ring (0 → 1)
-  const progress = useRef(new Animated.Value(0)).current;
+  // Refs for interval tracking
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastCaptureRotationRef = useRef<number>(0);
+  const hasAutoStoppedRef = useRef<boolean>(false);
 
-  // Mock rotation value for magnetometer concept
-  const rotation = useRef(new Animated.Value(0)).current;
-
-  // ── Start recording on mount ──────────────────────────────────────────────
+  // ── Request permission on mount ────────────────────────────────────────────
   useEffect(() => {
-    // Timer tick
-    timerRef.current = setInterval(() => {
-      setElapsed((prev) => prev + 1);
-    }, 1_000);
+    (async () => {
+      if (!hasPermission) {
+        const granted = await requestPermission();
+        if (!granted) {
+          setPermissionDenied(true);
+        }
+      }
+    })();
+  }, [hasPermission, requestPermission]);
 
-    // Animate progress ring over 30 seconds
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: 30_000,
-      easing: Easing.linear,
-      useNativeDriver: false,
-    }).start();
+  // ── Start recording once permission is granted ─────────────────────────────
+  useEffect(() => {
+    if (hasPermission && device && !isRecording && !permissionDenied) {
+      // Small delay to let camera initialize
+      const timeout = setTimeout(() => {
+        setIsRecording(true);
+        startRecording();
+        rotationTracker.start();
 
-    // Mock magnetometer rotation
-    Animated.loop(
-      Animated.timing(rotation, {
-        toValue: 1,
-        duration: 8_000,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    ).start();
+        // Start elapsed timer
+        timerRef.current = setInterval(() => {
+          setElapsed((prev) => prev + 1);
+        }, 1_000);
+      }, 500);
 
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [progress, rotation]);
+      return () => clearTimeout(timeout);
+    }
+    return undefined;
+  }, [hasPermission, device, permissionDenied]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Prompt cycling ────────────────────────────────────────────────────────
+  // ── Frame capture based on rotation ────────────────────────────────────────
+  useEffect(() => {
+    if (!isRecording) return;
+
+    const currentRotation = rotationTracker.rotation;
+    const lastCapture = lastCaptureRotationRef.current;
+
+    if (currentRotation - lastCapture >= CAPTURE_INTERVAL_DEG) {
+      lastCaptureRotationRef.current =
+        Math.floor(currentRotation / CAPTURE_INTERVAL_DEG) * CAPTURE_INTERVAL_DEG;
+
+      captureFrame().then((uri) => {
+        if (uri) {
+          addFrame(uri);
+        }
+      });
+    }
+  }, [rotationTracker.rotation, isRecording, captureFrame, addFrame]);
+
+  // ── Update store rotation ──────────────────────────────────────────────────
+  useEffect(() => {
+    if (isRecording) {
+      updateRotation(rotationTracker.rotation);
+    }
+  }, [rotationTracker.rotation, isRecording, updateRotation]);
+
+  // ── Auto-stop when rotation complete ───────────────────────────────────────
+  useEffect(() => {
+    if (rotationTracker.isComplete && isRecording && !hasAutoStoppedRef.current) {
+      hasAutoStoppedRef.current = true;
+      handleStop();
+    }
+  }, [rotationTracker.isComplete, isRecording]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Tilt warning pulse animation ──────────────────────────────────────────
+  useEffect(() => {
+    if (rotationTracker.tiltWarning) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(tiltPulse, {
+            toValue: 1.1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(tiltPulse, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]),
+      ).start();
+    } else {
+      tiltPulse.stopAnimation();
+      tiltPulse.setValue(1);
+    }
+  }, [rotationTracker.tiltWarning, tiltPulse]);
+
+  // ── Prompt cycling ─────────────────────────────────────────────────────────
   useEffect(() => {
     const interval = setInterval(() => {
-      // Fade out → change → fade in
       Animated.timing(promptOpacity, {
         toValue: 0,
         duration: 300,
@@ -103,7 +207,7 @@ export default function RecordingScreen(): React.JSX.Element {
     return () => clearInterval(interval);
   }, [promptOpacity]);
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const formatTime = useCallback((seconds: number): string => {
     const m = Math.floor(seconds / 60)
       .toString()
@@ -113,54 +217,151 @@ export default function RecordingScreen(): React.JSX.Element {
   }, []);
 
   const handleStop = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsRecording(false);
+    rotationTracker.stop();
+    stopRecording();
     router.push('/(tabs)/capture/review');
-  }, [router]);
+  }, [router, rotationTracker, stopRecording]);
 
-  // ── Derived animations ────────────────────────────────────────────────────
-  const ringRotation = rotation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
+  const handleRetryPermission = useCallback(async () => {
+    const granted = await requestPermission();
+    if (granted) {
+      setPermissionDenied(false);
+    }
+  }, [requestPermission]);
 
-  const progressWidth = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, RING_SIZE * Math.PI],
-  });
+  // ── Cleanup on unmount ─────────────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  // ── Progress ring calculation ──────────────────────────────────────────────
+  const progressFraction = Math.min(rotationTracker.rotation / 360, 1);
+  const strokeDashoffset = RING_CIRCUMFERENCE * (1 - progressFraction);
+
+  // ── Permission denied UI ───────────────────────────────────────────────────
+  if (permissionDenied || (!hasPermission && !device)) {
+    return (
+      <View style={styles.permissionContainer}>
+        <StatusBar barStyle="dark-content" />
+        <Text style={styles.permissionTitle}>Camera Access Required</Text>
+        <Text style={styles.permissionMessage}>
+          Drapnr needs camera access to capture your outfit from all angles.
+          Please grant camera permission to continue.
+        </Text>
+        <TouchableOpacity
+          style={styles.permissionButton}
+          onPress={handleRetryPermission}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.permissionButtonText}>Grant Permission</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.permissionBackButton}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.permissionBackText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── No device fallback ─────────────────────────────────────────────────────
+  if (!device) {
+    return (
+      <View style={styles.permissionContainer}>
+        <StatusBar barStyle="dark-content" />
+        <Text style={styles.permissionTitle}>No Camera Found</Text>
+        <Text style={styles.permissionMessage}>
+          Could not find a back camera on this device.
+        </Text>
+        <TouchableOpacity
+          style={styles.permissionBackButton}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Text style={styles.permissionBackText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // ── Main recording UI ─────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Camera placeholder */}
-      <View style={styles.cameraPlaceholder}>
-        <Text style={styles.cameraLabel}>Camera Feed</Text>
-        <Animated.View
-          style={[
-            styles.silhouette,
-            { transform: [{ rotate: ringRotation }] },
-          ]}
-        >
-          <View style={styles.silhouetteHead} />
-          <View style={styles.silhouetteBody} />
-        </Animated.View>
-      </View>
+      {/* Live camera preview */}
+      <Camera
+        ref={cameraRef}
+        style={StyleSheet.absoluteFill}
+        device={device}
+        isActive={isRecording || !permissionDenied}
+        photo={true}
+        enableZoomGesture={false}
+      />
 
       {/* Progress ring at top center */}
       <View style={styles.ringContainer}>
-        <View style={styles.ringTrack}>
-          <Animated.View
-            style={[
-              styles.ringFill,
-              {
-                width: progressWidth,
-              },
-            ]}
+        <Svg width={RING_SIZE} height={RING_SIZE}>
+          {/* Track */}
+          <Circle
+            cx={RING_SIZE / 2}
+            cy={RING_SIZE / 2}
+            r={RING_RADIUS}
+            stroke="rgba(255, 255, 255, 0.15)"
+            strokeWidth={RING_STROKE}
+            fill="none"
           />
+          {/* Progress fill */}
+          <Circle
+            cx={RING_SIZE / 2}
+            cy={RING_SIZE / 2}
+            r={RING_RADIUS}
+            stroke={COLORS.primary}
+            strokeWidth={RING_STROKE}
+            fill="none"
+            strokeDasharray={`${RING_CIRCUMFERENCE}`}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            transform={`rotate(-90 ${RING_SIZE / 2} ${RING_SIZE / 2})`}
+          />
+        </Svg>
+        <View style={styles.ringCenter}>
+          <Text style={styles.ringDegrees}>
+            {Math.round(rotationTracker.rotation)}°
+          </Text>
         </View>
         <Text style={styles.timerText}>{formatTime(elapsed)}</Text>
       </View>
+
+      {/* Frame count indicator */}
+      <View style={styles.frameCountContainer}>
+        <Text style={styles.frameCountText}>
+          {frames.length} frames
+        </Text>
+      </View>
+
+      {/* Tilt warning */}
+      {rotationTracker.tiltWarning && (
+        <Animated.View
+          style={[
+            styles.tiltWarning,
+            { transform: [{ scale: tiltPulse }] },
+          ]}
+        >
+          <Text style={styles.tiltWarningText}>
+            Hold your phone more upright
+          </Text>
+        </Animated.View>
+      )}
 
       {/* Bottom controls */}
       <View style={styles.bottomControls}>
@@ -187,61 +388,84 @@ export default function RecordingScreen(): React.JSX.Element {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
   },
-  cameraPlaceholder: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#1A1A2E',
+
+  // -- Permission denied UI --
+  permissionContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  permissionTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: COLORS.text,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  permissionMessage: {
+    fontSize: 15,
+    color: COLORS.secondaryText,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  permissionButton: {
+    height: 52,
+    paddingHorizontal: 40,
+    borderRadius: 12,
+    backgroundColor: COLORS.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  permissionButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.background,
+  },
+  permissionBackButton: {
+    height: 44,
+    paddingHorizontal: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cameraLabel: {
-    color: '#4B5563',
-    fontSize: 14,
+  permissionBackText: {
+    fontSize: 15,
     fontWeight: '500',
-    letterSpacing: 2,
-    textTransform: 'uppercase',
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 60 : 40,
+    color: COLORS.secondaryText,
   },
-  silhouette: {
-    alignItems: 'center',
-    opacity: 0.15,
-  },
-  silhouetteHead: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: '#6B7280',
-  },
-  silhouetteBody: {
-    width: 80,
-    height: 120,
-    borderRadius: 40,
-    backgroundColor: '#6B7280',
-    marginTop: -10,
-  },
+
+  // -- Progress ring --
   ringContainer: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 70 : 50,
     alignSelf: 'center',
     alignItems: 'center',
   },
-  ringTrack: {
-    width: RING_SIZE * Math.PI,
-    height: RING_STROKE,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: RING_STROKE / 2,
-    overflow: 'hidden',
+  ringCenter: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: RING_SIZE,
+    height: RING_SIZE,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  ringFill: {
-    height: RING_STROKE,
-    backgroundColor: COLORS.primary,
-    borderRadius: RING_STROKE / 2,
+  ringDegrees: {
+    color: COLORS.background,
+    fontSize: 18,
+    fontWeight: '600',
+    fontVariant: ['tabular-nums'],
   },
   timerText: {
     color: 'rgba(255, 255, 255, 0.6)',
@@ -250,6 +474,40 @@ const styles = StyleSheet.create({
     marginTop: 6,
     letterSpacing: 1,
   },
+
+  // -- Frame count --
+  frameCountContainer: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 70 : 50,
+    right: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  frameCountText: {
+    color: COLORS.background,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // -- Tilt warning --
+  tiltWarning: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 180 : 160,
+    alignSelf: 'center',
+    backgroundColor: COLORS.warning,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  tiltWarningText: {
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  // -- Bottom controls --
   bottomControls: {
     position: 'absolute',
     bottom: 0,

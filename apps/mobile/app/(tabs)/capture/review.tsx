@@ -1,7 +1,12 @@
-import React, { useCallback, useRef, useState } from 'react';
+// =============================================================================
+// Review Screen — Display captured frames and confirm outfit
+// =============================================================================
+
+import React, { useCallback, useState } from 'react';
 import {
-  Animated,
   Dimensions,
+  FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -9,10 +14,14 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
-// ── Design tokens ──────────────────────────────────────────────────────────────
+import { useCaptureStore } from '../../../stores/captureStore';
+
+// ── Design tokens ────────────────────────────────────────────────────────────
 const COLORS = {
   primary: '#FF6B6B',
   background: '#FFFFFF',
@@ -22,79 +31,132 @@ const COLORS = {
 } as const;
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const THUMBNAIL_SIZE = 80;
 
+// ── Component ────────────────────────────────────────────────────────────────
 export default function ReviewScreen(): React.JSX.Element {
   const router = useRouter();
   const [outfitName, setOutfitName] = useState<string>('');
-  const [isPlaying, setIsPlaying] = useState<boolean>(false);
+  const [isUploading, setIsUploading] = useState<boolean>(false);
+  const [selectedFrameIndex, setSelectedFrameIndex] = useState<number>(0);
 
-  // Subtle scale animation on play press
-  const playScale = useRef(new Animated.Value(1)).current;
-
-  const handlePlayPress = useCallback(() => {
-    Animated.sequence([
-      Animated.timing(playScale, {
-        toValue: 0.9,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(playScale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-    setIsPlaying((prev) => !prev);
-  }, [playScale]);
+  // Store
+  const frames = useCaptureStore((s) => s.frames);
+  const uploadFrames = useCaptureStore((s) => s.uploadFrames);
+  const triggerProcessing = useCaptureStore((s) => s.triggerProcessing);
+  const reset = useCaptureStore((s) => s.reset);
 
   const handleRetake = useCallback(() => {
+    reset();
     router.back();
-  }, [router]);
+  }, [router, reset]);
 
-  const handleUseThis = useCallback(() => {
-    router.push('/(tabs)/capture/processing');
-  }, [router]);
+  const handleUseThis = useCallback(async () => {
+    if (!outfitName.trim() || frames.length === 0) return;
+
+    setIsUploading(true);
+
+    try {
+      // Upload frames to Supabase Storage
+      const uploadResult = await uploadFrames(outfitName.trim());
+
+      if (!uploadResult.success) {
+        Alert.alert(
+          'Upload Failed',
+          uploadResult.error ?? 'Failed to upload frames. Please try again.',
+          [{ text: 'OK' }],
+        );
+        setIsUploading(false);
+        return;
+      }
+
+      // Trigger server-side processing
+      const processResult = await triggerProcessing();
+
+      if (!processResult.success) {
+        Alert.alert(
+          'Processing Failed',
+          processResult.error ?? 'Failed to start processing. Please try again.',
+          [{ text: 'OK' }],
+        );
+        setIsUploading(false);
+        return;
+      }
+
+      // Navigate to processing screen
+      router.push('/(tabs)/capture/processing');
+    } catch (error) {
+      Alert.alert(
+        'Error',
+        'An unexpected error occurred. Please try again.',
+        [{ text: 'OK' }],
+      );
+      setIsUploading(false);
+    }
+  }, [outfitName, frames, uploadFrames, triggerProcessing, router]);
+
+  const renderThumbnail = useCallback(
+    ({ item, index }: { item: string; index: number }) => (
+      <TouchableOpacity
+        onPress={() => setSelectedFrameIndex(index)}
+        activeOpacity={0.7}
+        style={[
+          styles.thumbnailWrapper,
+          index === selectedFrameIndex && styles.thumbnailSelected,
+        ]}
+      >
+        <Image source={{ uri: item }} style={styles.thumbnail} />
+        <Text style={styles.thumbnailIndex}>{index + 1}</Text>
+      </TouchableOpacity>
+    ),
+    [selectedFrameIndex],
+  );
+
+  const keyExtractor = useCallback(
+    (_item: string, index: number) => `frame-${index}`,
+    [],
+  );
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {/* Video playback placeholder */}
-      <View style={styles.videoContainer}>
-        <View style={styles.videoPlaceholder}>
-          <TouchableOpacity
-            onPress={handlePlayPress}
-            activeOpacity={0.8}
-            style={styles.playButtonWrapper}
-          >
-            <Animated.View
-              style={[
-                styles.playButton,
-                { transform: [{ scale: playScale }] },
-              ]}
-            >
-              {isPlaying ? (
-                <View style={styles.pauseIcon}>
-                  <View style={styles.pauseBar} />
-                  <View style={styles.pauseBar} />
-                </View>
-              ) : (
-                <View style={styles.playIcon} />
-              )}
-            </Animated.View>
-          </TouchableOpacity>
-
-          <Text style={styles.videoLabel}>
-            {isPlaying ? 'Playing...' : 'Tap to preview'}
-          </Text>
-
-          {/* Scrub bar placeholder */}
-          <View style={styles.scrubBar}>
-            <View style={styles.scrubProgress} />
+      {/* Large preview of selected frame */}
+      <View style={styles.previewContainer}>
+        {frames.length > 0 ? (
+          <Image
+            source={{ uri: frames[selectedFrameIndex] ?? frames[0] }}
+            style={styles.previewImage}
+            resizeMode="cover"
+          />
+        ) : (
+          <View style={styles.noFramesPlaceholder}>
+            <Text style={styles.noFramesText}>No frames captured</Text>
           </View>
+        )}
+
+        {/* Frame counter badge */}
+        <View style={styles.frameCountBadge}>
+          <Text style={styles.frameCountText}>
+            {frames.length} frame{frames.length !== 1 ? 's' : ''} captured
+          </Text>
         </View>
       </View>
+
+      {/* Horizontal thumbnail scroll */}
+      {frames.length > 0 && (
+        <View style={styles.thumbnailStrip}>
+          <FlatList
+            data={frames}
+            renderItem={renderThumbnail}
+            keyExtractor={keyExtractor}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.thumbnailList}
+          />
+        </View>
+      )}
 
       {/* Bottom section */}
       <View style={styles.bottomSection}>
@@ -108,6 +170,7 @@ export default function ReviewScreen(): React.JSX.Element {
           onChangeText={setOutfitName}
           maxLength={60}
           returnKeyType="done"
+          editable={!isUploading}
         />
         <Text style={styles.charCount}>{outfitName.length}/60</Text>
 
@@ -117,6 +180,7 @@ export default function ReviewScreen(): React.JSX.Element {
             style={styles.retakeButton}
             onPress={handleRetake}
             activeOpacity={0.7}
+            disabled={isUploading}
           >
             <Text style={styles.retakeText}>Retake</Text>
           </TouchableOpacity>
@@ -124,13 +188,18 @@ export default function ReviewScreen(): React.JSX.Element {
           <TouchableOpacity
             style={[
               styles.useButton,
-              !outfitName.trim() && styles.useButtonDisabled,
+              (!outfitName.trim() || frames.length === 0 || isUploading) &&
+                styles.useButtonDisabled,
             ]}
             onPress={handleUseThis}
             activeOpacity={0.7}
-            disabled={!outfitName.trim()}
+            disabled={!outfitName.trim() || frames.length === 0 || isUploading}
           >
-            <Text style={styles.useText}>Use This</Text>
+            {isUploading ? (
+              <ActivityIndicator color={COLORS.background} size="small" />
+            ) : (
+              <Text style={styles.useText}>Use This</Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -138,85 +207,89 @@ export default function ReviewScreen(): React.JSX.Element {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
+// ── Styles ──────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
   },
-  videoContainer: {
+  previewContainer: {
     flex: 1,
-    padding: 16,
-    paddingTop: Platform.OS === 'ios' ? 60 : 40,
-  },
-  videoPlaceholder: {
-    flex: 1,
-    backgroundColor: '#1A1A2E',
+    margin: 16,
+    marginTop: Platform.OS === 'ios' ? 60 : 40,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
     overflow: 'hidden',
+    backgroundColor: '#1A1A2E',
   },
-  playButtonWrapper: {
+  previewImage: {
+    flex: 1,
+    width: '100%',
+  },
+  noFramesPlaceholder: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  playButton: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  playIcon: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: 20,
-    borderTopWidth: 13,
-    borderBottomWidth: 13,
-    borderLeftColor: COLORS.background,
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    marginLeft: 5,
-  },
-  pauseIcon: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  pauseBar: {
-    width: 6,
-    height: 24,
-    backgroundColor: COLORS.background,
-    borderRadius: 2,
-  },
-  videoLabel: {
+  noFramesText: {
     color: 'rgba(255, 255, 255, 0.4)',
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: '500',
-    marginTop: 14,
-    letterSpacing: 0.5,
   },
-  scrubBar: {
+  frameCountBadge: {
     position: 'absolute',
-    bottom: 16,
-    left: 16,
-    right: 16,
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 1.5,
+    bottom: 12,
+    right: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
   },
-  scrubProgress: {
-    width: '35%',
-    height: 3,
-    backgroundColor: COLORS.primary,
-    borderRadius: 1.5,
+  frameCountText: {
+    color: COLORS.background,
+    fontSize: 13,
+    fontWeight: '600',
   },
+
+  // -- Thumbnail strip --
+  thumbnailStrip: {
+    height: THUMBNAIL_SIZE + 16,
+    paddingVertical: 8,
+  },
+  thumbnailList: {
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  thumbnailWrapper: {
+    width: THUMBNAIL_SIZE,
+    height: THUMBNAIL_SIZE,
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  thumbnailSelected: {
+    borderColor: COLORS.primary,
+  },
+  thumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  thumbnailIndex: {
+    position: 'absolute',
+    bottom: 2,
+    right: 4,
+    color: COLORS.background,
+    fontSize: 10,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+
+  // -- Bottom section --
   bottomSection: {
     paddingHorizontal: 20,
-    paddingTop: 24,
+    paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 44 : 24,
     backgroundColor: COLORS.background,
   },
