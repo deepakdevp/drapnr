@@ -79,9 +79,13 @@ export default function PaywallModal(): React.JSX.Element {
     });
   }, [router, slideAnim, backdropOpacity]);
 
-  const handleStartTrial = useCallback(() => {
-    // In production: trigger IAP for Plus plan trial
-    dismiss();
+  const handleStartTrial = useCallback(async () => {
+    // Use RevenueCat native paywall UI
+    const { useSubscriptionStore } = await import('../stores/subscriptionStore');
+    const purchased = await useSubscriptionStore.getState().presentPaywall();
+    if (purchased) {
+      dismiss();
+    }
   }, [dismiss]);
 
   const handleViewAllPlans = useCallback(() => {

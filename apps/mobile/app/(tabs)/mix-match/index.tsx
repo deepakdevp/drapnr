@@ -102,8 +102,17 @@ export default function MixMatchScreen(): React.JSX.Element {
     router.push('/(tabs)/mix-match/save-combo');
   }, [router]);
 
-  const handleUpgrade = useCallback(() => {
-    router.push('/paywall' as never);
+  const handleUpgrade = useCallback(async () => {
+    // Try native RevenueCat paywall first, fall back to custom paywall
+    try {
+      const { useSubscriptionStore } = await import('../../../stores/subscriptionStore');
+      const purchased = await useSubscriptionStore.getState().presentPaywall();
+      if (!purchased) {
+        router.push('/paywall' as never);
+      }
+    } catch {
+      router.push('/paywall' as never);
+    }
   }, [router]);
 
   // ── Render garment card ─────────────────────────────────────────────────

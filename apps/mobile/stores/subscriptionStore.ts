@@ -6,11 +6,13 @@
 // =============================================================================
 
 import { create } from 'zustand';
+import { Platform } from 'react-native';
 import Purchases, {
   type PurchasesPackage,
   type CustomerInfo,
   LOG_LEVEL,
 } from 'react-native-purchases';
+import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 
 import { supabase } from '../services/supabase';
 import { useAuthStore } from './authStore';
@@ -34,6 +36,7 @@ interface SubscriptionActions {
   initialize: () => Promise<void>;
   fetchOfferings: () => Promise<void>;
   purchase: (packageId: string) => Promise<void>;
+  presentPaywall: () => Promise<boolean>;
   restorePurchases: () => Promise<void>;
   checkEntitlement: () => Promise<void>;
   getOutfitLimit: () => number;
@@ -48,11 +51,12 @@ type SubscriptionStore = SubscriptionState & SubscriptionActions;
 // Constants
 // -----------------------------------------------------------------------------
 
-const REVENUECAT_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_API_KEY ?? '';
+const REVENUECAT_IOS_KEY = 'test_sclruEyyYMrsYeJlcfZIITgYsDq';
+const REVENUECAT_ANDROID_KEY = 'test_sclruEyyYMrsYeJlcfZIITgYsDq';
 
 const ENTITLEMENT_IDS = {
-  plus: 'drapnr_plus',
-  pro: 'drapnr_pro',
+  plus: 'Drapnr Plus',
+  pro: 'Drapnr Pro',
 } as const;
 
 /** Outfit limits per tier. */
@@ -119,15 +123,43 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
    * Initialize RevenueCat SDK, identify the user, and check current entitlements.
    * Also sets up a listener for subscription changes.
    */
+  /**
+   * Present the RevenueCat native paywall UI.
+   * Returns true if user purchased/restored, false otherwise.
+   */
+  presentPaywall: async (): Promise<boolean> => {
+    try {
+      const paywallResult: PAYWALL_RESULT = await RevenueCatUI.presentPaywall();
+
+      switch (paywallResult) {
+        case PAYWALL_RESULT.PURCHASED:
+        case PAYWALL_RESULT.RESTORED:
+          // Refresh entitlements after successful purchase
+          await get().checkEntitlement();
+          return true;
+        case PAYWALL_RESULT.NOT_PRESENTED:
+        case PAYWALL_RESULT.ERROR:
+        case PAYWALL_RESULT.CANCELLED:
+        default:
+          return false;
+      }
+    } catch (err: any) {
+      console.error('[subscriptionStore] presentPaywall error:', err.message);
+      return false;
+    }
+  },
+
   initialize: async () => {
-    if (!REVENUECAT_API_KEY) {
+    const apiKey = Platform.OS === 'ios' ? REVENUECAT_IOS_KEY : REVENUECAT_ANDROID_KEY;
+
+    if (!apiKey) {
       console.warn('[subscriptionStore] No RevenueCat API key configured');
       return;
     }
 
     try {
-      Purchases.setLogLevel(LOG_LEVEL.WARN);
-      Purchases.configure({ apiKey: REVENUECAT_API_KEY });
+      Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+      Purchases.configure({ apiKey });
 
       // Identify user with their Supabase user ID
       const userId = useAuthStore.getState().user?.id;

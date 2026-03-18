@@ -40,6 +40,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-svg": "~15.8.0",
     "react-native-purchases": "^8.3.0",
+    "react-native-purchases-ui": "^8.3.0",
     "react-native-reanimated": "~3.16.0",
     "react-native-vision-camera": "^4.6.0",
     "three": "^0.172.0",
