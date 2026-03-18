@@ -36,24 +36,9 @@
     "plugins": [
       "expo-router",
       [
-        "expo-camera",
-        {
-          "cameraPermission": "Allow Drapnr to access your camera for body scanning and virtual try-on."
-        }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#FF6B6B"
-        }
-      ],
-      "expo-sensors",
-      "expo-haptics",
-      [
         "react-native-vision-camera",
         {
-          "cameraPermissionText": "Drapnr needs camera access for AR try-on.",
+          "cameraPermissionText": "Drapnr needs camera access to capture your outfits.",
           "enableMicrophonePermission": false
         }
       ]
