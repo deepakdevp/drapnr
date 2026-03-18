@@ -6,16 +6,20 @@ const monorepoRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// Watch the monorepo root for changes in shared packages
-config.watchFolders = [monorepoRoot];
+// pnpm symlinks node_modules to .pnpm at the monorepo root
+// Metro needs to watch there to resolve them
+config.watchFolders = [
+  path.resolve(monorepoRoot, 'node_modules'),
+  path.resolve(monorepoRoot, 'packages'),
+];
 
-// Ensure Metro can resolve packages from the monorepo root node_modules
+// Enable symlink resolution for pnpm
+config.resolver.unstable_enableSymlinks = true;
+
+// Resolve from both mobile and root node_modules
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(monorepoRoot, 'node_modules'),
 ];
-
-// Disable hierarchical lookup to avoid duplicates
-config.resolver.disableHierarchicalLookup = true;
 
 module.exports = config;
