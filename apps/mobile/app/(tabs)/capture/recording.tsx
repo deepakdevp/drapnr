@@ -17,12 +17,23 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import {
-  Camera,
-  useCameraDevice,
-  useCameraPermission,
-} from 'react-native-vision-camera';
 import Svg, { Circle } from 'react-native-svg';
+
+// VisionCamera only works on native — lazy import to avoid web/Expo Go crashes
+let Camera: any = null;
+let useCameraDevice: any = () => null;
+let useCameraPermission: any = () => ({ hasPermission: false, requestPermission: async () => false });
+
+if (Platform.OS !== 'web') {
+  try {
+    const vc = require('react-native-vision-camera');
+    Camera = vc.Camera;
+    useCameraDevice = vc.useCameraDevice;
+    useCameraPermission = vc.useCameraPermission;
+  } catch {
+    // VisionCamera not available (Expo Go)
+  }
+}
 
 import { useRotationTracking } from '../../../hooks/useRotationTracking';
 import { useFrameCapture } from '../../../hooks/useFrameCapture';

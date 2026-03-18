@@ -4,7 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system';
-import type { Camera } from 'react-native-vision-camera';
+// Use 'any' for Camera type to avoid importing VisionCamera on web
+type CameraRef = any;
 
 // -----------------------------------------------------------------------------
 // Types
@@ -30,7 +31,7 @@ const FRAMES_DIR = `${FileSystem.cacheDirectory}drapnr-frames/`;
 // -----------------------------------------------------------------------------
 
 export function useFrameCapture(
-  cameraRef: React.RefObject<Camera | null>,
+  cameraRef: React.RefObject<CameraRef | null>,
 ): UseFrameCaptureReturn {
   const [frames, setFrames] = useState<string[]>([]);
   const frameCountRef = useRef(0);

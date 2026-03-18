@@ -7,16 +7,29 @@
 
 import { create } from 'zustand';
 import { Platform } from 'react-native';
-import Purchases, {
-  type PurchasesPackage,
-  type CustomerInfo,
-  LOG_LEVEL,
-} from 'react-native-purchases';
-import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 
 import { supabase } from '../services/supabase';
 import { useAuthStore } from './authStore';
 import type { SubscriptionTier, SubscriptionProduct } from '../types';
+
+// RevenueCat — lazy import to avoid crashes in Expo Go / web
+let Purchases: any = null;
+let RevenueCatUI: any = null;
+let PAYWALL_RESULT: any = {};
+let LOG_LEVEL: any = {};
+
+type PurchasesPackage = any;
+type CustomerInfo = any;
+
+try {
+  Purchases = require('react-native-purchases').default;
+  LOG_LEVEL = require('react-native-purchases').LOG_LEVEL;
+  RevenueCatUI = require('react-native-purchases-ui').default;
+  PAYWALL_RESULT = require('react-native-purchases-ui').PAYWALL_RESULT;
+} catch {
+  // RevenueCat not available (Expo Go / web)
+  console.warn('[subscriptionStore] RevenueCat not available — using free tier only');
+}
 
 // -----------------------------------------------------------------------------
 // State & Actions
@@ -152,13 +165,13 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
   initialize: async () => {
     const apiKey = Platform.OS === 'ios' ? REVENUECAT_IOS_KEY : REVENUECAT_ANDROID_KEY;
 
-    if (!apiKey) {
-      console.warn('[subscriptionStore] No RevenueCat API key configured');
+    if (!apiKey || !Purchases) {
+      console.warn('[subscriptionStore] RevenueCat not available');
       return;
     }
 
     try {
-      Purchases.setLogLevel(LOG_LEVEL.VERBOSE);
+      Purchases.setLogLevel(LOG_LEVEL?.VERBOSE ?? 'VERBOSE');
       Purchases.configure({ apiKey });
 
       // Identify user with their Supabase user ID
