@@ -1,3 +1,17 @@
+# CI Pipeline — runs on push to main/develop and all PRs
+#
+# Required GitHub Secrets (for CI to pass):
+#   - None (CI uses public dependencies only)
+#
+# Required GitHub Secrets (for deploy workflows):
+#   - VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID (deploy-web.yml)
+#   - EXPO_TOKEN (eas-build.yml)
+#
+# Required Supabase Edge Function env vars:
+#   - SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+#   - GPU_SERVER_URL, PROCESSING_WEBHOOK_SECRET
+#   - REVENUECAT_WEBHOOK_SECRET
+
 name: CI
 
 on:
