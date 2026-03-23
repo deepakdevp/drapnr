@@ -1,6 +1,5 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Animated,
   Dimensions,
   FlatList,
   Image,
@@ -11,6 +10,13 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+
+import { useAuthStore } from '../../../stores/authStore';
+import { useWardrobeStore } from '../../../stores/wardrobeStore';
+import { useCombinationStore } from '../../../stores/combinationStore';
+import { useSubscriptionStore } from '../../../stores/subscriptionStore';
+import { AvatarScene } from '../../../components/three/AvatarScene';
+import type { Garment, GarmentCategory } from '../../../types';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const COLORS = {
@@ -24,78 +30,64 @@ const COLORS = {
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 const VIEWER_HEIGHT = SCREEN_HEIGHT * 0.55;
 
-// ── Mock data ──────────────────────────────────────────────────────────────────
-interface GarmentItem {
-  id: string;
-  name: string;
-  color: string;
-  thumbnail: string; // placeholder color hex
-}
-
-type Category = 'tops' | 'bottoms' | 'shoes';
-
-const MOCK_GARMENTS: Record<Category, GarmentItem[]> = {
-  tops: [
-    { id: 't1', name: 'White T-Shirt', color: '#F9FAFB', thumbnail: '#F9FAFB' },
-    { id: 't2', name: 'Black Blazer', color: '#1F2937', thumbnail: '#1F2937' },
-    { id: 't3', name: 'Coral Hoodie', color: '#FF6B6B', thumbnail: '#FF6B6B' },
-    { id: 't4', name: 'Denim Jacket', color: '#60A5FA', thumbnail: '#60A5FA' },
-    { id: 't5', name: 'Grey Sweater', color: '#9CA3AF', thumbnail: '#9CA3AF' },
-  ],
-  bottoms: [
-    { id: 'b1', name: 'Blue Jeans', color: '#3B82F6', thumbnail: '#3B82F6' },
-    { id: 'b2', name: 'Black Trousers', color: '#111827', thumbnail: '#111827' },
-    { id: 'b3', name: 'Khaki Chinos', color: '#D2B48C', thumbnail: '#D2B48C' },
-    { id: 'b4', name: 'White Shorts', color: '#F3F4F6', thumbnail: '#F3F4F6' },
-  ],
-  shoes: [
-    { id: 's1', name: 'White Sneakers', color: '#FAFAFA', thumbnail: '#FAFAFA' },
-    { id: 's2', name: 'Black Boots', color: '#1C1917', thumbnail: '#1C1917' },
-    { id: 's3', name: 'Brown Loafers', color: '#92400E', thumbnail: '#92400E' },
-  ],
-};
+type Category = 'top' | 'bottom' | 'shoes';
 
 const TAB_LABELS: { key: Category; label: string }[] = [
-  { key: 'tops', label: 'Tops' },
-  { key: 'bottoms', label: 'Bottoms' },
+  { key: 'top', label: 'Tops' },
+  { key: 'bottom', label: 'Bottoms' },
   { key: 'shoes', label: 'Shoes' },
 ];
-
-const IS_FREE_USER = false; // Toggle to true to test paywall overlay
 
 // ── Component ──────────────────────────────────────────────────────────────────
 export default function MixMatchScreen(): React.JSX.Element {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<Category>('tops');
-  const [selected, setSelected] = useState<Record<Category, string | null>>({
-    tops: 't1',
-    bottoms: 'b1',
-    shoes: 's1',
-  });
+  const [activeTab, setActiveTab] = useState<Category>('top');
 
-  // Avatar rotation mock
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  // Stores
+  const bodyTemplate = useAuthStore((s) => s.bodyTemplate);
+  const garments = useWardrobeStore((s) => s.garments);
+  const fetchGarments = useWardrobeStore((s) => s.fetchGarments);
+  const tier = useSubscriptionStore((s) => s.tier);
+  const setCurrentTop = useCombinationStore((s) => s.setCurrentTop);
+  const setCurrentBottom = useCombinationStore((s) => s.setCurrentBottom);
+  const setCurrentShoes = useCombinationStore((s) => s.setCurrentShoes);
+  const currentCombo = useCombinationStore((s) => s.currentCombo);
 
-  React.useEffect(() => {
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 12_000,
-        useNativeDriver: true,
-      }),
-    ).start();
-  }, [rotateAnim]);
+  const isFreeUser = tier === 'free';
 
-  const avatarRotation = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
+  // Load garments on mount
+  useEffect(() => {
+    fetchGarments();
+  }, [fetchGarments]);
+
+  // Group garments by category
+  const groupedGarments = useMemo(() => {
+    const groups: Record<Category, Garment[]> = { top: [], bottom: [], shoes: [] };
+    for (const g of garments) {
+      if (groups[g.category]) groups[g.category].push(g);
+    }
+    return groups;
+  }, [garments]);
+
+  // Find selected garment texture URLs for 3D viewer
+  const selectedTop = garments.find((g) => g.id === currentCombo.topId);
+  const selectedBottom = garments.find((g) => g.id === currentCombo.bottomId);
+  const selectedShoes = garments.find((g) => g.id === currentCombo.shoesId);
+
+  // Resolve body template to model key
+  const bodyTemplateKey = bodyTemplate
+    ? `${bodyTemplate.gender}_${bodyTemplate.bodyType}`
+    : 'female_avg';
 
   const handleSelectGarment = useCallback(
     (category: Category, id: string) => {
-      setSelected((prev) => ({ ...prev, [category]: id }));
+      switch (category) {
+        case 'top': setCurrentTop(id); break;
+        case 'bottom': setCurrentBottom(id); break;
+        case 'shoes': setCurrentShoes(id); break;
+      }
     },
-    [],
+    [setCurrentTop, setCurrentBottom, setCurrentShoes],
   );
 
   const handleSaveCombo = useCallback(() => {
@@ -115,19 +107,35 @@ export default function MixMatchScreen(): React.JSX.Element {
     }
   }, [router]);
 
-  // ── Render garment card ─────────────────────────────────────────────────
+  // Get selected ID for current category
+  const getSelectedId = (category: Category): string | null => {
+    switch (category) {
+      case 'top': return currentCombo.topId;
+      case 'bottom': return currentCombo.bottomId;
+      case 'shoes': return currentCombo.shoesId;
+    }
+  };
+
   const renderGarmentCard = useCallback(
-    ({ item }: { item: GarmentItem }) => {
-      const isSelected = selected[activeTab] === item.id;
+    ({ item }: { item: Garment }) => {
+      const isSelected = getSelectedId(activeTab) === item.id;
       return (
         <TouchableOpacity
           style={[styles.garmentCard, isSelected && styles.garmentCardSelected]}
           onPress={() => handleSelectGarment(activeTab, item.id)}
           activeOpacity={0.7}
         >
-          <View
-            style={[styles.garmentThumb, { backgroundColor: item.color }]}
-          />
+          {item.thumbnailUrl ? (
+            <Image
+              source={{ uri: item.thumbnailUrl }}
+              style={styles.garmentThumb}
+              resizeMode="cover"
+            />
+          ) : (
+            <View
+              style={[styles.garmentThumb, { backgroundColor: item.dominantColor || '#E5E7EB' }]}
+            />
+          )}
           <Text
             style={[
               styles.garmentName,
@@ -135,75 +143,26 @@ export default function MixMatchScreen(): React.JSX.Element {
             ]}
             numberOfLines={1}
           >
-            {item.name}
+            {item.metadata.brand ?? item.category}
           </Text>
           {isSelected && <View style={styles.selectedIndicator} />}
         </TouchableOpacity>
       );
     },
-    [activeTab, selected, handleSelectGarment],
+    [activeTab, currentCombo, handleSelectGarment],
   );
 
   return (
     <View style={styles.container}>
-      {/* 3D Viewer Area */}
+      {/* 3D Avatar Viewer */}
       <View style={styles.viewerArea}>
-        {/* Gradient placeholder */}
-        <View style={styles.gradientBg}>
-          <View style={styles.gradientTop} />
-          <View style={styles.gradientBottom} />
-        </View>
-
-        {/* Rotating avatar silhouette */}
-        <Animated.View
-          style={[
-            styles.avatarSilhouette,
-            { transform: [{ rotateY: avatarRotation }] },
-          ]}
-        >
-          <View style={styles.avatarHead} />
-          <View style={styles.avatarTorso}>
-            <View
-              style={[
-                styles.avatarTorsoColor,
-                {
-                  backgroundColor:
-                    MOCK_GARMENTS.tops.find(
-                      (g) => g.id === selected.tops,
-                    )?.color ?? '#CCC',
-                },
-              ]}
-            />
-          </View>
-          <View style={styles.avatarLegs}>
-            <View
-              style={[
-                styles.avatarLegsColor,
-                {
-                  backgroundColor:
-                    MOCK_GARMENTS.bottoms.find(
-                      (g) => g.id === selected.bottoms,
-                    )?.color ?? '#CCC',
-                },
-              ]}
-            />
-          </View>
-          <View style={styles.avatarFeet}>
-            <View
-              style={[
-                styles.avatarFeetColor,
-                {
-                  backgroundColor:
-                    MOCK_GARMENTS.shoes.find(
-                      (g) => g.id === selected.shoes,
-                    )?.color ?? '#CCC',
-                },
-              ]}
-            />
-          </View>
-        </Animated.View>
-
-        <Text style={styles.viewerHint}>3D Preview</Text>
+        <AvatarScene
+          bodyTemplate={bodyTemplateKey}
+          topTexture={selectedTop?.textureUrl ?? null}
+          bottomTexture={selectedBottom?.textureUrl ?? null}
+          shoesTexture={selectedShoes?.textureUrl ?? null}
+          garments={garments}
+        />
       </View>
 
       {/* Bottom sheet area */}
@@ -236,14 +195,21 @@ export default function MixMatchScreen(): React.JSX.Element {
         </View>
 
         {/* Horizontal garment list */}
-        <FlatList
-          data={MOCK_GARMENTS[activeTab]}
-          renderItem={renderGarmentCard}
-          keyExtractor={(item) => item.id}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.garmentList}
-        />
+        {groupedGarments[activeTab].length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>No {activeTab}s in your wardrobe yet</Text>
+            <Text style={styles.emptySubtext}>Capture an outfit to start mixing</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={groupedGarments[activeTab]}
+            renderItem={renderGarmentCard}
+            keyExtractor={(item) => item.id}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.garmentList}
+          />
+        )}
       </View>
 
       {/* Save Combo FAB */}
@@ -256,7 +222,7 @@ export default function MixMatchScreen(): React.JSX.Element {
       </TouchableOpacity>
 
       {/* Free user blurred overlay */}
-      {IS_FREE_USER && (
+      {isFreeUser && (
         <View style={styles.paywallOverlay}>
           <View style={styles.paywallBlur} />
           <View style={styles.paywallContent}>
@@ -293,67 +259,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  gradientBg: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  gradientTop: {
-    flex: 1,
-    backgroundColor: '#F0F0F5',
-  },
-  gradientBottom: {
-    flex: 1,
-    backgroundColor: '#E8E8EE',
-  },
-  avatarSilhouette: {
+  emptyState: {
+    paddingVertical: 24,
+    paddingHorizontal: 20,
     alignItems: 'center',
   },
-  avatarHead: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#D1D5DB',
+  emptyText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: COLORS.text,
   },
-  avatarTorso: {
-    width: 70,
-    height: 80,
-    borderRadius: 12,
-    overflow: 'hidden',
-    marginTop: -4,
-  },
-  avatarTorsoColor: {
-    flex: 1,
-    borderRadius: 12,
-  },
-  avatarLegs: {
-    width: 60,
-    height: 90,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginTop: 2,
-  },
-  avatarLegsColor: {
-    flex: 1,
-    borderRadius: 8,
-  },
-  avatarFeet: {
-    width: 50,
-    height: 20,
-    borderRadius: 10,
-    overflow: 'hidden',
-    marginTop: 2,
-  },
-  avatarFeetColor: {
-    flex: 1,
-    borderRadius: 10,
-  },
-  viewerHint: {
-    position: 'absolute',
-    bottom: 12,
-    color: COLORS.secondaryText,
+  emptySubtext: {
     fontSize: 12,
-    fontWeight: '500',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
+    color: COLORS.secondaryText,
+    marginTop: 4,
   },
 
   // Bottom sheet
@@ -423,6 +342,7 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 12,
     marginBottom: 8,
+    overflow: 'hidden',
   },
   garmentName: {
     fontSize: 11,
