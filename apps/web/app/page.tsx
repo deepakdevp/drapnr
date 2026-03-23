@@ -163,10 +163,33 @@ export default function Home() {
                 className="flex justify-center lg:justify-end"
               >
                 <div className="relative h-[520px] w-[260px] overflow-hidden rounded-[3rem] bg-gradient-to-br from-[#FF6B6B] via-[#FF9B9B] to-[#FFE0E0] shadow-2xl shadow-[#FF6B6B]/20 sm:h-[600px] sm:w-[300px]">
-                  {/* Notch */}
+                  {/* Dynamic Island */}
                   <div className="absolute left-1/2 top-3 h-6 w-24 -translate-x-1/2 rounded-full bg-black/10" />
-                  {/* Screen content placeholder */}
-                  <div className="absolute inset-4 top-12 rounded-[2rem] bg-white/20 backdrop-blur-sm" />
+                  {/* Screen content — wardrobe preview */}
+                  <div className="absolute inset-4 top-12 flex flex-col gap-3 rounded-[2rem] bg-white/30 p-4 backdrop-blur-sm">
+                    <div className="text-center text-sm font-bold text-white/90">My Wardrobe</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { color: "bg-blue-300", label: "Casual" },
+                        { color: "bg-rose-300", label: "Evening" },
+                        { color: "bg-amber-300", label: "Work" },
+                        { color: "bg-emerald-300", label: "Weekend" },
+                      ].map((item) => (
+                        <div key={item.label} className="flex flex-col items-center gap-1">
+                          <div className={`h-16 w-full rounded-xl ${item.color} opacity-80 sm:h-20`} />
+                          <span className="text-[10px] font-medium text-white/80">{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {/* 3D avatar silhouette */}
+                    <div className="mt-auto flex items-center justify-center">
+                      <div className="flex flex-col items-center opacity-70">
+                        <div className="h-6 w-6 rounded-full bg-white/50" />
+                        <div className="mt-0.5 h-10 w-8 rounded-lg bg-white/40" />
+                        <div className="mt-0.5 h-12 w-7 rounded-md bg-white/30" />
+                      </div>
+                    </div>
+                  </div>
                   {/* Bottom bar */}
                   <div className="absolute bottom-4 left-1/2 h-1 w-28 -translate-x-1/2 rounded-full bg-white/40" />
                 </div>
