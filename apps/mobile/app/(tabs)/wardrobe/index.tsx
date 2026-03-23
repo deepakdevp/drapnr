@@ -8,6 +8,7 @@ import { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   StyleSheet,
   FlatList,
@@ -15,6 +16,7 @@ import {
   ActivityIndicator,
   Dimensions,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -28,13 +30,13 @@ const CARD_WIDTH = (SCREEN_WIDTH - 48 - CARD_GAP) / 2;
 export default function WardrobeScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { outfits, isLoading, isRefreshing, loadOutfits, refreshOutfits } =
+  const { outfits, isLoading, isRefreshing, fetchOutfits, refreshOutfits } =
     useWardrobeStore();
 
   const c = theme.colors;
 
   useEffect(() => {
-    loadOutfits();
+    fetchOutfits();
   }, []);
 
   const handleOutfitPress = (outfit: Outfit) => {
@@ -47,7 +49,6 @@ export default function WardrobeScreen() {
 
   const renderOutfitCard = useCallback(
     ({ item, index }: { item: Outfit; index: number }) => {
-      const garmentCount = item.garments.length;
       return (
         <Animated.View entering={FadeInDown.delay(index * 80).duration(400)}>
           <TouchableOpacity
@@ -62,31 +63,31 @@ export default function WardrobeScreen() {
             onPress={() => handleOutfitPress(item)}
             activeOpacity={0.7}
           >
-            {/* Thumbnail placeholder */}
+            {/* Thumbnail */}
             <View style={styles.thumbnailContainer}>
-              <View style={[styles.thumbnail, { backgroundColor: c.neutral.gray100 }]}>
-                {/* Show garment colors as a mini palette */}
-                <View style={styles.colorRow}>
-                  {item.garments.map((g) => (
-                    <View
-                      key={g.id}
-                      style={[
-                        styles.colorDot,
-                        {
-                          backgroundColor: g.color,
-                          borderColor: c.surface.border,
-                        },
-                      ]}
-                    />
-                  ))}
+              {item.thumbnailUrl ? (
+                <Image
+                  source={{ uri: item.thumbnailUrl }}
+                  style={styles.thumbnail}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.thumbnail, { backgroundColor: c.neutral.gray100 }]}>
+                  <Ionicons name="shirt-outline" size={32} color={c.text.tertiary} />
                 </View>
-                <Text style={[styles.thumbnailIcon, { color: c.text.tertiary }]}>👔</Text>
-              </View>
+              )}
 
-              {/* Garment count badge */}
-              <View style={[styles.badge, { backgroundColor: c.brand.primary }]}>
-                <Text style={styles.badgeText}>{garmentCount}</Text>
-              </View>
+              {/* Status badge */}
+              {item.status === 'processing' && (
+                <View style={[styles.badge, { backgroundColor: '#F59E0B' }]}>
+                  <ActivityIndicator size={10} color="#FFF" />
+                </View>
+              )}
+              {item.status === 'failed' && (
+                <View style={[styles.badge, { backgroundColor: '#EF4444' }]}>
+                  <Ionicons name="alert" size={10} color="#FFF" />
+                </View>
+              )}
             </View>
 
             {/* Info */}

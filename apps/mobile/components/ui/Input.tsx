@@ -3,6 +3,7 @@
 // =============================================================================
 
 import React, { useState, useCallback } from 'react';
+import { Ionicons } from '@expo/vector-icons';
 import {
   View,
   TextInput,
@@ -112,10 +113,7 @@ export function Input({
         {(leftIcon || search) && (
           <View style={styles.iconLeft}>
             {search ? (
-              <Text style={{ color: theme.colors.text.tertiary, fontSize: 16 }}>
-                {/* Simple search icon placeholder — swap for an icon library */}
-                {'\u{1F50D}'}
-              </Text>
+              <Ionicons name="search" size={18} color={theme.colors.text.tertiary} />
             ) : (
               leftIcon
             )}

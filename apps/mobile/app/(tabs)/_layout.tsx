@@ -7,12 +7,13 @@
 
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { Tabs } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/lib/theme';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 // ---------------------------------------------------------------------------
-// Tab icon components (simple text-based icons as placeholders)
+// Tab icon components
 // ---------------------------------------------------------------------------
 
 interface TabIconProps {
@@ -21,38 +22,24 @@ interface TabIconProps {
   size: number;
 }
 
-function WardrobeIcon({ focused, color }: TabIconProps) {
-  return (
-    <Text style={[styles.iconText, { color, fontWeight: focused ? '900' : '400' }]}>
-      ▦
-    </Text>
-  );
+function WardrobeIcon({ focused, color, size }: TabIconProps) {
+  return <Ionicons name={focused ? 'shirt' : 'shirt-outline'} size={size} color={color} />;
 }
 
 function CaptureIcon({ focused, color }: TabIconProps) {
   return (
     <View style={[styles.captureIconContainer, focused && styles.captureIconFocused]}>
-      <Text style={[styles.captureIconText, { color: focused ? '#FFFFFF' : color }]}>
-        ◉
-      </Text>
+      <Ionicons name="camera" size={22} color={focused ? '#FFFFFF' : color} />
     </View>
   );
 }
 
-function MixMatchIcon({ focused, color }: TabIconProps) {
-  return (
-    <Text style={[styles.iconText, { color, fontWeight: focused ? '900' : '400' }]}>
-      ⇄
-    </Text>
-  );
+function MixMatchIcon({ focused, color, size }: TabIconProps) {
+  return <Ionicons name={focused ? 'swap-horizontal' : 'swap-horizontal-outline'} size={size} color={color} />;
 }
 
-function ProfileIcon({ focused, color }: TabIconProps) {
-  return (
-    <Text style={[styles.iconText, { color, fontWeight: focused ? '900' : '400' }]}>
-      ●
-    </Text>
-  );
+function ProfileIcon({ focused, color, size }: TabIconProps) {
+  return <Ionicons name={focused ? 'person' : 'person-outline'} size={size} color={color} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,9 +179,6 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  iconText: {
-    fontSize: 22,
-  },
   captureIconContainer: {
     width: 28,
     height: 28,
@@ -204,9 +188,6 @@ const styles = StyleSheet.create({
   },
   captureIconFocused: {
     backgroundColor: '#FF2D55',
-  },
-  captureIconText: {
-    fontSize: 22,
   },
   tabBar: {
     flexDirection: 'row',
