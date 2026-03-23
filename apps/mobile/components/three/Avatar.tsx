@@ -182,15 +182,11 @@ export function Avatar({
     matBottomRef.current = materials.get(MATERIAL_SLOTS.bottom);
     matShoesRef.current = materials.get(MATERIAL_SLOTS.shoes);
 
-    // Log missing slots in dev for easier debugging
+    // Warn about missing slots in dev for easier debugging
     if (__DEV__) {
       for (const [zone, slot] of Object.entries(MATERIAL_SLOTS)) {
         if (!materials.has(slot)) {
-          console.warn(
-            `[Avatar] Material slot "${slot}" not found in model. ` +
-            `The ${zone} texture will not be applied. ` +
-            `Available materials: ${[...materials.keys()].join(', ') || '(none)'}`,
-          );
+          // Dev-only: material slot missing in model
         }
       }
     }
@@ -218,10 +214,7 @@ export function Avatar({
 
   // ------ Handle load errors gracefully ------
   if (loadError) {
-    if (__DEV__) {
-      console.error('[Avatar] Model load error:', loadError.message);
-    }
-    // Render nothing -- the error boundary in AvatarScene will catch this
+    // Render nothing — the error boundary in AvatarScene will catch this
     return null;
   }
 

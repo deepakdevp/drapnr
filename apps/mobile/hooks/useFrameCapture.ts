@@ -4,6 +4,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import * as FileSystem from 'expo-file-system';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('useFrameCapture');
 // Use 'any' for Camera type to avoid importing VisionCamera on web
 type CameraRef = any;
 
@@ -97,7 +100,7 @@ export function useFrameCapture(
 
       return destPath;
     } catch (error) {
-      console.warn('[useFrameCapture] Failed to capture frame:', error);
+      log.warn('Failed to capture frame:', error);
       return null;
     }
   }, [cameraRef]);

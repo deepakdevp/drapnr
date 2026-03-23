@@ -9,6 +9,9 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import NetInfo, { type NetInfoState, type NetInfoStateType } from '@react-native-community/netinfo';
 
 import { syncDatabase } from '../services/offline';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('useNetworkStatus');
 
 // -----------------------------------------------------------------------------
 // Types
@@ -39,7 +42,7 @@ export function useNetworkStatus(): NetworkStatus {
     try {
       await syncDatabase();
     } catch (err) {
-      console.error('[useNetworkStatus] Sync failed:', err);
+      log.error('Sync failed:', err);
     }
   }, []);
 
@@ -54,7 +57,7 @@ export function useNetworkStatus(): NetworkStatus {
 
       // Trigger sync when transitioning from offline to online
       if (!wasConnectedRef.current && connected) {
-        console.log('[useNetworkStatus] Network restored, triggering sync');
+        log.debug('Network restored, triggering sync');
         triggerSync();
       }
 

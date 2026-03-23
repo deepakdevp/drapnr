@@ -109,7 +109,7 @@ export const AvatarScreenshot = forwardRef<
   const captureAsync = useCallback(async (): Promise<string | null> => {
     const gl = glRef.current;
     if (!gl) {
-      console.warn('[AvatarScreenshot] No GL context available for capture');
+      // No GL context available for capture
       return null;
     }
 
@@ -117,7 +117,7 @@ export const AvatarScreenshot = forwardRef<
       const result = await captureGLContext(gl, captureWidth, captureHeight);
       return result || null;
     } catch (error) {
-      console.error('[AvatarScreenshot] Capture failed:', error);
+      // Capture failed — return null
       return null;
     }
   }, [captureWidth, captureHeight]);

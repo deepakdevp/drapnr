@@ -4,6 +4,9 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Asset } from 'expo-asset';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('useAvatarModel');
 
 // -----------------------------------------------------------------------------
 // Model manifest (maps template keys to bundled assets)
@@ -109,7 +112,7 @@ export function useAvatarModel(bodyTemplate: string): UseAvatarModelReturn {
       .catch((err) => {
         if (!cancelledRef.current && currentTemplateRef.current === bodyTemplate) {
           const message = err instanceof Error ? err.message : 'Failed to load model';
-          console.error(`[useAvatarModel] ${message}`);
+          log.error(message);
           setError(message);
           setIsLoading(false);
         }

@@ -76,8 +76,8 @@ class SceneErrorBoundary extends React.Component<
     return { hasError: true, error };
   }
 
-  componentDidCatch(error: Error, info: React.ErrorInfo) {
-    console.error('[AvatarScene] 3D rendering error:', error, info);
+  componentDidCatch(_error: Error, _info: React.ErrorInfo) {
+    // Error is surfaced via the fallback UI — no console output in production
   }
 
   render() {
@@ -221,12 +221,12 @@ function useWebGLContextHandler() {
 
       const handleLost = (event: Event) => {
         event.preventDefault();
-        console.warn('[AvatarScene] WebGL context lost');
+        // WebGL context lost — handled by contextLost state
         setContextLost(true);
       };
 
       const handleRestored = () => {
-        console.info('[AvatarScene] WebGL context restored');
+        // WebGL context restored
         setContextLost(false);
       };
 
