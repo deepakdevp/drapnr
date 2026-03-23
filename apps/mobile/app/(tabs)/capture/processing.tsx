@@ -11,6 +11,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { useCaptureStore } from '../../../stores/captureStore';
+
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const COLORS = {
   primary: '#FF6B6B',
@@ -40,6 +42,13 @@ const TOTAL_DURATION = STEPS.reduce((sum, s) => sum + s.duration, 0);
 
 export default function ProcessingScreen(): React.JSX.Element {
   const router = useRouter();
+
+  // Real processing state from store
+  const processingJobId = useCaptureStore((s) => s.processingJobId);
+  const processingStatus = useCaptureStore((s) => s.processingStatus);
+  const processingProgress = useCaptureStore((s) => s.processingProgress);
+  const processingError = useCaptureStore((s) => s.error);
+  const pollProcessingStatus = useCaptureStore((s) => s.pollProcessingStatus);
 
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [percentage, setPercentage] = useState<number>(0);
@@ -87,31 +96,29 @@ export default function ProcessingScreen(): React.JSX.Element {
     ).start();
   }, [spinAnim, pulseAnim]);
 
-  // ── Step progression (mock) ───────────────────────────────────────────────
+  // ── Start polling for real job status ─────────────────────────────────────
   useEffect(() => {
-    let elapsed = 0;
+    if (processingJobId) {
+      pollProcessingStatus(processingJobId);
+    }
+  }, [processingJobId, pollProcessingStatus]);
 
-    const interval = setInterval(() => {
-      elapsed += 200;
-      const pct = Math.min(Math.round((elapsed / TOTAL_DURATION) * 100), 100);
-      setPercentage(pct);
+  // ── Sync real progress to local display state ───────────────────────────
+  useEffect(() => {
+    setPercentage(processingProgress);
 
-      // Determine current step
-      let accumulated = 0;
-      for (let i = 0; i < STEPS.length; i++) {
-        accumulated += STEPS[i].duration;
-        if (elapsed < accumulated) {
-          setCurrentStep(i);
-          break;
-        }
-        if (i === STEPS.length - 1) {
-          setCurrentStep(STEPS.length - 1);
-        }
-      }
-    }, 200);
-
-    return () => clearInterval(interval);
-  }, []);
+    // Map processing status to step index
+    const STATUS_STEP_MAP: Record<string, number> = {
+      uploading: 0,
+      extracting: 1,
+      segmenting: 2,
+      mapping: 3,
+      complete: 4,
+      failed: -1,
+    };
+    const step = STATUS_STEP_MAP[processingStatus] ?? 0;
+    if (step >= 0) setCurrentStep(step);
+  }, [processingProgress, processingStatus]);
 
   // ── Derived ───────────────────────────────────────────────────────────────
   const spin = spinAnim.interpolate({

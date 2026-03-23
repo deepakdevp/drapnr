@@ -4,9 +4,10 @@
 // Shows an illustration and step-by-step instructions before recording.
 // =============================================================================
 
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
 import { useTheme } from '@/lib/theme';
 
 interface Step {
@@ -36,12 +37,10 @@ const STEPS: Step[] = [
 export default function CaptureScreen() {
   const theme = useTheme();
   const c = theme.colors;
+  const router = useRouter();
 
   const handleStartRecording = () => {
-    Alert.alert(
-      'Camera Coming Soon',
-      'The 360-degree capture experience will be available in the next update.',
-    );
+    router.push('/(tabs)/capture/recording');
   };
 
   return (
