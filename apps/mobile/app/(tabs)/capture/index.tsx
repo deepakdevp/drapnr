@@ -4,11 +4,13 @@
 // Shows an illustration and step-by-step instructions before recording.
 // =============================================================================
 
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useTheme } from '@/lib/theme';
+import { useSubscriptionStore } from '@/stores/subscriptionStore';
+import { useWardrobeStore } from '@/stores/wardrobeStore';
 
 interface Step {
   number: string;
@@ -38,8 +40,24 @@ export default function CaptureScreen() {
   const theme = useTheme();
   const c = theme.colors;
   const router = useRouter();
+  const canAddOutfit = useSubscriptionStore((s) => s.canAddOutfit);
+  const getOutfitLimit = useSubscriptionStore((s) => s.getOutfitLimit);
+  const tier = useSubscriptionStore((s) => s.tier);
+  const outfitCount = useWardrobeStore((s) => s.outfits.length);
 
   const handleStartRecording = () => {
+    if (!canAddOutfit(outfitCount)) {
+      const limit = getOutfitLimit();
+      Alert.alert(
+        'Outfit Limit Reached',
+        `You have ${outfitCount}/${limit} outfits on the ${tier} plan. Upgrade to add more.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Upgrade', onPress: () => router.push('/paywall' as never) },
+        ],
+      );
+      return;
+    }
     router.push('/(tabs)/capture/recording');
   };
 
