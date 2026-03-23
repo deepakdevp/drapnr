@@ -12,6 +12,9 @@ import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { ThemeContext, lightTheme } from '@/lib/theme';
 import { useAuthStore } from '@/stores/authStore';
+import { useSubscriptionStore } from '@/stores/subscriptionStore';
+import { registerForPushNotifications, setupNotificationListeners } from '@/services/notifications';
+import { syncOnAppOpen, startNetworkListener } from '@/services/offline';
 
 // Keep splash visible while loading resources
 SplashScreen.preventAutoHideAsync();
@@ -21,6 +24,9 @@ export default function RootLayout() {
   const [appReady, setAppReady] = useState(false);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const bodyTemplate = useAuthStore((s) => s.bodyTemplate);
+  const registerPushToken = useAuthStore((s) => s.registerPushToken);
+  const initializeAuth = useAuthStore((s) => s.initialize);
+  const initializeSubscriptions = useSubscriptionStore((s) => s.initialize);
   const segments = useSegments();
   const router = useRouter();
 
@@ -52,6 +58,34 @@ export default function RootLayout() {
 
     loadFonts();
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // Initialize auth, subscriptions, push notifications, and sync
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    // Initialize RevenueCat
+    initializeSubscriptions();
+
+    // Register push token
+    registerForPushNotifications().then((token) => {
+      if (token) registerPushToken(token);
+    });
+
+    // Start offline sync
+    syncOnAppOpen();
+    startNetworkListener();
+
+    // Set up notification listeners
+    const cleanup = setupNotificationListeners();
+    return cleanup;
+  }, [isAuthenticated]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
   // Hide splash when ready
