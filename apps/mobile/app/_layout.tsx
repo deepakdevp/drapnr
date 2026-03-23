@@ -15,9 +15,13 @@ import { useAuthStore } from '@/stores/authStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { registerForPushNotifications, setupNotificationListeners } from '@/services/notifications';
 import { syncOnAppOpen, startNetworkListener } from '@/services/offline';
+import { initSentry, setUser as setSentryUser } from '@/services/sentry';
 
 // Keep splash visible while loading resources
 SplashScreen.preventAutoHideAsync();
+
+// Initialize Sentry before anything else
+initSentry();
 
 export default function RootLayout() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -69,6 +73,10 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
+
+    // Identify user in Sentry
+    const user = useAuthStore.getState().user;
+    if (user) setSentryUser({ id: user.id, email: user.email });
 
     // Initialize RevenueCat
     initializeSubscriptions();
