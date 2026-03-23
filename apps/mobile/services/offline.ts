@@ -7,6 +7,9 @@
 // =============================================================================
 
 import { Platform } from 'react-native';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('offline');
 
 const IS_NATIVE = Platform.OS !== 'web';
 
@@ -19,7 +22,7 @@ export async function syncDatabase(): Promise<void> {
     const mod = await import('./offline.native');
     await mod.syncDatabase();
   } catch (err) {
-    console.warn('[offline] Sync unavailable:', err);
+    log.warn('Sync unavailable:', err);
   }
 }
 
@@ -29,7 +32,7 @@ export async function syncOnAppOpen(): Promise<void> {
     const mod = await import('./offline.native');
     await mod.syncOnAppOpen();
   } catch (err) {
-    console.warn('[offline] syncOnAppOpen unavailable:', err);
+    log.warn('syncOnAppOpen unavailable:', err);
   }
 }
 
@@ -39,7 +42,7 @@ export async function syncOnConnectivityChange(): Promise<void> {
     const mod = await import('./offline.native');
     await mod.syncOnConnectivityChange();
   } catch (err) {
-    console.warn('[offline] syncOnConnectivityChange unavailable:', err);
+    log.warn('syncOnConnectivityChange unavailable:', err);
   }
 }
 
@@ -49,7 +52,7 @@ export async function startNetworkListener(): Promise<void> {
     const mod = await import('./offline.native');
     mod.startNetworkListener();
   } catch (err) {
-    console.warn('[offline] startNetworkListener unavailable:', err);
+    log.warn('startNetworkListener unavailable:', err);
   }
 }
 
@@ -73,6 +76,6 @@ export async function clearCache(): Promise<void> {
     const mod = await import('./offline.native');
     await mod.clearCache();
   } catch (err) {
-    console.warn('[offline] clearCache unavailable:', err);
+    log.warn('clearCache unavailable:', err);
   }
 }
