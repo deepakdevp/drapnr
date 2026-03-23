@@ -1,7 +1,10 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -11,6 +14,9 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+
+import { useCombinationStore } from '../../../stores/combinationStore';
+import { useWardrobeStore } from '../../../stores/wardrobeStore';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const COLORS = {
@@ -23,23 +29,35 @@ const COLORS = {
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
-// ── Mock selected garments ─────────────────────────────────────────────────────
-interface SelectedGarment {
-  id: string;
-  name: string;
-  color: string;
-  category: string;
-}
-
-const MOCK_SELECTED: SelectedGarment[] = [
-  { id: 't1', name: 'White T-Shirt', color: '#F9FAFB', category: 'Top' },
-  { id: 'b1', name: 'Blue Jeans', color: '#3B82F6', category: 'Bottom' },
-  { id: 's1', name: 'White Sneakers', color: '#FAFAFA', category: 'Shoes' },
-];
-
 export default function SaveComboModal(): React.JSX.Element {
   const router = useRouter();
   const [comboName, setComboName] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const currentCombo = useCombinationStore((s) => s.currentCombo);
+  const saveCombination = useCombinationStore((s) => s.saveCombination);
+  const garments = useWardrobeStore((s) => s.garments);
+
+  const selectedGarments = useMemo(() => {
+    const items: { id: string; name: string; color: string; category: string; thumbnailUrl: string }[] = [];
+    for (const [category, id] of [
+      ['Top', currentCombo.topId],
+      ['Bottom', currentCombo.bottomId],
+      ['Shoes', currentCombo.shoesId],
+    ] as const) {
+      const garment = garments.find((g) => g.id === id);
+      if (garment) {
+        items.push({
+          id: garment.id,
+          name: garment.metadata.brand ?? garment.category,
+          color: garment.dominantColor || '#E5E7EB',
+          category,
+          thumbnailUrl: garment.thumbnailUrl,
+        });
+      }
+    }
+    return items;
+  }, [currentCombo, garments]);
 
   const slideAnim = useRef(new Animated.Value(300)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
@@ -78,10 +96,18 @@ export default function SaveComboModal(): React.JSX.Element {
     });
   }, [router, slideAnim, backdropOpacity]);
 
-  const handleSave = useCallback(() => {
-    // In production: save combo to store/DB
-    dismiss();
-  }, [dismiss]);
+  const handleSave = useCallback(async () => {
+    if (!comboName.trim()) return;
+    setIsSaving(true);
+    try {
+      await saveCombination(comboName.trim());
+      dismiss();
+    } catch (err: any) {
+      Alert.alert('Save Failed', err.message ?? 'Could not save combination.');
+    } finally {
+      setIsSaving(false);
+    }
+  }, [comboName, saveCombination, dismiss]);
 
   return (
     <View style={styles.container}>
@@ -114,14 +140,22 @@ export default function SaveComboModal(): React.JSX.Element {
 
           {/* Selected garment previews */}
           <View style={styles.previewRow}>
-            {MOCK_SELECTED.map((garment) => (
+            {selectedGarments.map((garment) => (
               <View key={garment.id} style={styles.previewItem}>
-                <View
-                  style={[
-                    styles.previewThumb,
-                    { backgroundColor: garment.color },
-                  ]}
-                />
+                {garment.thumbnailUrl ? (
+                  <Image
+                    source={{ uri: garment.thumbnailUrl }}
+                    style={styles.previewThumb}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.previewThumb,
+                      { backgroundColor: garment.color },
+                    ]}
+                  />
+                )}
                 <Text style={styles.previewCategory}>{garment.category}</Text>
                 <Text style={styles.previewName} numberOfLines={1}>
                   {garment.name}
@@ -156,13 +190,17 @@ export default function SaveComboModal(): React.JSX.Element {
             <TouchableOpacity
               style={[
                 styles.saveButton,
-                !comboName.trim() && styles.saveButtonDisabled,
+                (!comboName.trim() || isSaving) && styles.saveButtonDisabled,
               ]}
               onPress={handleSave}
               activeOpacity={0.7}
-              disabled={!comboName.trim()}
+              disabled={!comboName.trim() || isSaving}
             >
-              <Text style={styles.saveText}>Save</Text>
+              {isSaving ? (
+                <ActivityIndicator color={COLORS.background} size="small" />
+              ) : (
+                <Text style={styles.saveText}>Save</Text>
+              )}
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -223,6 +261,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    overflow: 'hidden',
   },
   previewCategory: {
     fontSize: 10,
