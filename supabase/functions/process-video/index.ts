@@ -60,11 +60,18 @@ serve(async (req: Request) => {
     }
 
     // Create Supabase client with user's JWT for RLS
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const gpuServerUrl = Deno.env.get("GPU_SERVER_URL")!;
-    const gpuApiKey = Deno.env.get("PROCESSING_WEBHOOK_SECRET")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const gpuServerUrl = Deno.env.get("GPU_SERVER_URL");
+    const gpuApiKey = Deno.env.get("PROCESSING_WEBHOOK_SECRET");
+
+    if (!supabaseUrl || !supabaseAnonKey || !supabaseServiceKey || !gpuServerUrl || !gpuApiKey) {
+      return new Response(
+        JSON.stringify({ error: "Server misconfigured: missing required environment variables" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
