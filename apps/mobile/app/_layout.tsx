@@ -44,7 +44,7 @@ export default function RootLayout() {
         });
       } catch (e) {
         // Font loading failed — fall back to system fonts
-        console.warn('Font loading failed, using system fonts:', e);
+        // Font loading failed — fall back to system fonts
       } finally {
         setFontsLoaded(true);
       }

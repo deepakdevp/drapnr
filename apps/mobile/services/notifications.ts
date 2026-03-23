@@ -10,6 +10,9 @@ import { Platform } from 'react-native';
 import { router } from 'expo-router';
 
 import type { PushNotificationData } from '../types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('notifications');
 
 // -----------------------------------------------------------------------------
 // Configuration
@@ -48,7 +51,7 @@ export async function registerForPushNotifications(): Promise<string | null> {
   }
 
   if (finalStatus !== 'granted') {
-    console.warn('[notifications] Push notification permission denied');
+    log.warn('Push notification permission denied');
     return null;
   }
 
@@ -114,7 +117,7 @@ export function setupNotificationListeners(): () => void {
   // Fired when a notification is received while the app is foregrounded
   const foregroundSubscription = Notifications.addNotificationReceivedListener(
     (notification) => {
-      console.log('[notifications] Received in foreground:', notification.request.identifier);
+      log.debug('Received in foreground:', notification.request.identifier);
     },
   );
 

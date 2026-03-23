@@ -16,7 +16,10 @@ import {
   updateOutfitName as updateOutfitNameApi,
 } from '../services/supabase';
 import { useAuthStore } from './authStore';
+import { createLogger } from '../utils/logger';
 import type { Outfit, Garment, GarmentCategory } from '../types';
+
+const log = createLogger('wardrobeStore');
 
 // Re-export types for backward compatibility with consumers that import from this file
 export type { Outfit, Garment } from '../types';
@@ -224,13 +227,13 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
       const result = await fetchGarmentsByCategoryApi(userId, category);
 
       if (result.error) {
-        console.error('[wardrobeStore] getGarmentsByCategory error:', result.error.message);
+        log.error('getGarmentsByCategory error:', result.error.message);
         return [];
       }
 
       return result.data ?? [];
     } catch (err: any) {
-      console.error('[wardrobeStore] getGarmentsByCategory error:', err.message);
+      log.error('getGarmentsByCategory error:', err.message);
       return [];
     }
   },
@@ -262,7 +265,7 @@ export const useWardrobeStore = create<WardrobeStore>((set, get) => ({
         });
       }
     } catch (err: any) {
-      console.error('[wardrobeStore] refreshAfterProcessing error:', err.message);
+      log.error('refreshAfterProcessing error:', err.message);
     }
   },
 }));

@@ -15,6 +15,9 @@ import {
   pollUntilComplete,
 } from '../services/processing';
 import { useWardrobeStore } from './wardrobeStore';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('captureStore');
 
 // -----------------------------------------------------------------------------
 // State & Actions
@@ -232,7 +235,7 @@ export const useCaptureStore = create<CaptureStore>((set, get) => ({
 
           if (uploadError) {
             const msg = `Failed to upload frame ${i + 1}: ${uploadError.message}`;
-            console.warn(`[captureStore] ${msg}`);
+            log.warn(msg);
             set({ processingStatus: 'failed', error: msg });
             return { success: false, error: msg };
           }
@@ -244,7 +247,7 @@ export const useCaptureStore = create<CaptureStore>((set, get) => ({
           set({ processingProgress: uploadProgress });
         } catch (fileError) {
           const msg = `Failed to read frame ${i + 1} from disk`;
-          console.warn(`[captureStore] Error reading frame ${i}:`, fileError);
+          log.warn('Error reading frame:', fileError);
           set({ processingStatus: 'failed', error: msg });
           return { success: false, error: msg };
         }

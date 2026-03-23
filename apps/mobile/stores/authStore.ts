@@ -20,7 +20,10 @@ import {
   updateUserProfile,
 } from '../services/supabase';
 import { clearCache } from '../services/offline';
+import { createLogger } from '../utils/logger';
 import type { User, BodyTemplate, Subscription } from '../types';
+
+const log = createLogger('authStore');
 
 // -----------------------------------------------------------------------------
 // State & Actions
@@ -104,7 +107,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         }
       }
     } catch (err: any) {
-      console.error('[authStore] initialize error:', err.message);
+      log.error('initialize error:', err.message);
     } finally {
       set({ isLoading: false });
     }
@@ -235,7 +238,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       await supabaseSignOut();
       await clearCache();
     } catch (err: any) {
-      console.error('[authStore] signOut error:', err.message);
+      log.error('signOut error:', err.message);
     } finally {
       set({
         user: null,
@@ -266,7 +269,7 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
         set({ isLoading: false });
       }
     } catch (err: any) {
-      console.error('[authStore] loadUser error:', err.message);
+      log.error('loadUser error:', err.message);
       set({ isLoading: false });
     }
   },
@@ -283,10 +286,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       if (result.data) {
         set({ user: result.data });
       } else if (result.error) {
-        console.error('[authStore] setBodyTemplate error:', result.error.message);
+        log.error('setBodyTemplate error:', result.error.message);
       }
     } catch (err: any) {
-      console.error('[authStore] setBodyTemplate error:', err.message);
+      log.error('setBodyTemplate error:', err.message);
     }
   },
 
@@ -326,10 +329,10 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       if (result.data) {
         set({ user: result.data });
       } else if (result.error) {
-        console.error('[authStore] registerPushToken error:', result.error.message);
+        log.error('registerPushToken error:', result.error.message);
       }
     } catch (err: any) {
-      console.error('[authStore] registerPushToken error:', err.message);
+      log.error('registerPushToken error:', err.message);
     }
   },
 }));

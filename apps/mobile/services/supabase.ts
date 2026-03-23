@@ -18,6 +18,9 @@ import type {
   ApiResponse,
   GarmentCategory,
 } from '../types';
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('supabase');
 
 // -----------------------------------------------------------------------------
 // Client Initialization
@@ -109,7 +112,7 @@ export async function signUpWithEmail(
     });
 
     if (insertError) {
-      console.error('[supabase] Failed to create user profile:', insertError.message);
+      log.error('Failed to create user profile:', insertError.message);
     }
 
     return {

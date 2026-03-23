@@ -3,26 +3,30 @@
 // This file is only imported dynamically on iOS/Android
 // =============================================================================
 
+import { createLogger } from '../utils/logger';
+
+const log = createLogger('offline');
+
 export async function syncDatabase(): Promise<void> {
-  console.log('[offline] syncDatabase called — native WatermelonDB sync not yet configured');
+  log.debug('syncDatabase called — native WatermelonDB sync not yet configured');
 }
 
 export async function syncOnAppOpen(): Promise<void> {
-  console.log('[offline] syncOnAppOpen called');
+  log.debug('syncOnAppOpen called');
   await syncDatabase();
 }
 
 export async function syncOnConnectivityChange(): Promise<void> {
-  console.log('[offline] syncOnConnectivityChange called');
+  log.debug('syncOnConnectivityChange called');
   await syncDatabase();
 }
 
 export function startNetworkListener(): void {
-  console.log('[offline] startNetworkListener called');
+  log.debug('startNetworkListener called');
 }
 
 export function stopNetworkListener(): void {
-  console.log('[offline] stopNetworkListener called');
+  log.debug('stopNetworkListener called');
 }
 
 export async function getCacheSize(): Promise<number> {
@@ -30,5 +34,5 @@ export async function getCacheSize(): Promise<number> {
 }
 
 export async function clearCache(): Promise<void> {
-  console.log('[offline] clearCache called');
+  log.debug('clearCache called');
 }

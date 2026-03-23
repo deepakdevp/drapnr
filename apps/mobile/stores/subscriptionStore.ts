@@ -10,7 +10,10 @@ import { Platform } from 'react-native';
 
 import { supabase } from '../services/supabase';
 import { useAuthStore } from './authStore';
+import { createLogger } from '../utils/logger';
 import type { SubscriptionTier, SubscriptionProduct } from '../types';
+
+const log = createLogger('subscriptionStore');
 
 // RevenueCat — lazy import to avoid crashes in Expo Go / web
 let Purchases: any = null;
@@ -28,7 +31,7 @@ try {
   PAYWALL_RESULT = require('react-native-purchases-ui').PAYWALL_RESULT;
 } catch {
   // RevenueCat not available (Expo Go / web)
-  console.warn('[subscriptionStore] RevenueCat not available — using free tier only');
+  log.warn('RevenueCat not available — using free tier only');
 }
 
 // -----------------------------------------------------------------------------
@@ -157,7 +160,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
           return false;
       }
     } catch (err: any) {
-      console.error('[subscriptionStore] presentPaywall error:', err.message);
+      log.error('presentPaywall error:', err.message);
       return false;
     }
   },
@@ -166,7 +169,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
     const apiKey = Platform.OS === 'ios' ? REVENUECAT_IOS_KEY : REVENUECAT_ANDROID_KEY;
 
     if (!apiKey || !Purchases) {
-      console.warn('[subscriptionStore] RevenueCat not available');
+      log.warn('RevenueCat not available');
       return;
     }
 
@@ -200,7 +203,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
         get().syncTierToSupabase(newTier);
       });
     } catch (err: any) {
-      console.error('[subscriptionStore] initialize error:', err.message);
+      log.error('initialize error:', err.message);
       set({ error: 'Failed to initialize subscription service.' });
     }
   },
@@ -228,7 +231,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
         isLoading: false,
       });
     } catch (err: any) {
-      console.error('[subscriptionStore] fetchOfferings error:', err.message);
+      log.error('fetchOfferings error:', err.message);
       set({
         isLoading: false,
         error: 'Failed to load subscription options. Please try again.',
@@ -274,7 +277,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
         return;
       }
 
-      console.error('[subscriptionStore] purchase error:', err.message);
+      log.error('purchase error:', err.message);
       set({
         isLoading: false,
         error: 'Purchase failed. You have not been charged.',
@@ -306,7 +309,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
       // Sync to Supabase
       await get().syncTierToSupabase(newTier);
     } catch (err: any) {
-      console.error('[subscriptionStore] restorePurchases error:', err.message);
+      log.error('restorePurchases error:', err.message);
       set({
         isLoading: false,
         error: 'Failed to restore purchases. Please try again.',
@@ -332,7 +335,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
         expiresAt: activeEntitlement?.expirationDate ?? null,
       });
     } catch (err: any) {
-      console.error('[subscriptionStore] checkEntitlement error:', err.message);
+      log.error('checkEntitlement error:', err.message);
     }
   },
 
@@ -365,10 +368,10 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
         .eq('id', userId);
 
       if (error) {
-        console.error('[subscriptionStore] syncTierToSupabase error:', error.message);
+        log.error('syncTierToSupabase error:', error.message);
       }
     } catch (err: any) {
-      console.error('[subscriptionStore] syncTierToSupabase error:', err.message);
+      log.error('syncTierToSupabase error:', err.message);
     }
   },
 }));
