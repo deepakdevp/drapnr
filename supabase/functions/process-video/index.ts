@@ -64,6 +64,7 @@ serve(async (req: Request) => {
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const gpuServerUrl = Deno.env.get("GPU_SERVER_URL")!;
+    const gpuApiKey = Deno.env.get("PROCESSING_WEBHOOK_SECRET")!;
 
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
@@ -159,7 +160,10 @@ serve(async (req: Request) => {
     // Dispatch to GPU processing server
     const gpuResponse = await fetch(`${gpuServerUrl}/process`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": gpuApiKey,
+      },
       body: JSON.stringify({
         job_id: job.id,
         outfit_id: outfit.id,

@@ -15,7 +15,8 @@ import logging
 import uuid
 from typing import List, Optional
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi.security import APIKeyHeader
 from pydantic import BaseModel, Field
 
 from config import settings
@@ -44,6 +45,25 @@ app = FastAPI(
 # Track running tasks so we can respect the concurrency limit.
 _active_tasks: int = 0
 _task_lock = asyncio.Lock()
+
+# ---------------------------------------------------------------------------
+# Auth middleware
+# ---------------------------------------------------------------------------
+
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
+async def verify_api_key(api_key: str | None = Depends(_api_key_header)) -> str:
+    """Validate the X-API-Key header against the configured webhook secret."""
+    expected = settings.processing_webhook_secret
+    if not expected:
+        raise HTTPException(
+            status_code=500,
+            detail="Server misconfigured: PROCESSING_WEBHOOK_SECRET is not set.",
+        )
+    if not api_key or api_key != expected:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+    return api_key
 
 
 # ---------------------------------------------------------------------------
@@ -123,6 +143,7 @@ async def _run_job(
 async def process(
     request: ProcessRequest,
     background_tasks: BackgroundTasks,
+    _key: str = Depends(verify_api_key),
 ) -> ProcessResponse:
     """Queue a new garment texture extraction job.
 

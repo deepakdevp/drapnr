@@ -64,8 +64,8 @@ type SubscriptionStore = SubscriptionState & SubscriptionActions;
 // Constants
 // -----------------------------------------------------------------------------
 
-const REVENUECAT_IOS_KEY = 'test_sclruEyyYMrsYeJlcfZIITgYsDq';
-const REVENUECAT_ANDROID_KEY = 'test_sclruEyyYMrsYeJlcfZIITgYsDq';
+const REVENUECAT_IOS_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY ?? '';
+const REVENUECAT_ANDROID_KEY = process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_KEY ?? '';
 
 const ENTITLEMENT_IDS = {
   plus: 'Drapnr Plus',
