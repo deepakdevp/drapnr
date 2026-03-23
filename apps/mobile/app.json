@@ -16,9 +16,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.drapnr.app",
+      "associatedDomains": ["applinks:drapnr.com"],
       "infoPlist": {
-        "NSCameraUsageDescription": "Drapnr needs camera access to scan your body measurements and try on clothes virtually.",
-        "NSPhotoLibraryUsageDescription": "Drapnr needs photo library access to save your try-on photos."
+        "NSCameraUsageDescription": "Drapnr needs camera access to capture your outfits from all angles.",
+        "NSPhotoLibraryUsageDescription": "Drapnr needs photo library access to save your outfit photos."
       }
     },
     "android": {
@@ -27,7 +28,21 @@
         "backgroundColor": "#FF6B6B"
       },
       "package": "com.drapnr.app",
-      "permissions": ["CAMERA"]
+      "permissions": ["CAMERA"],
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "drapnr.com",
+              "pathPrefix": "/outfit"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
