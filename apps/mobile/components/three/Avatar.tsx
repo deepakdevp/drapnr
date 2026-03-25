@@ -18,6 +18,8 @@ export interface AvatarProps {
   topTexture: string | null;
   bottomTexture: string | null;
   shoesTexture: string | null;
+  /** Y-axis rotation from touch controls (radians). Overrides idle rotation when set. */
+  rotationY?: number;
   enableIdleRotation?: boolean;
   idleRotationSpeed?: number;
 }
@@ -123,6 +125,7 @@ export function Avatar({
   topTexture,
   bottomTexture,
   shoesTexture,
+  rotationY,
   enableIdleRotation = true,
   idleRotationSpeed = 0.003,
 }: AvatarProps): React.JSX.Element | null {
@@ -205,9 +208,14 @@ export function Avatar({
     applyTextureToMaterial(matShoesRef.current, shoesState);
   }, [shoesState.texture, shoesState.isLoading]);
 
-  // ------ Idle Y-axis rotation animation ------
+  // ------ Y-axis rotation (touch controls or idle) ------
   useFrame((_state, delta) => {
-    if (enableIdleRotation && groupRef.current) {
+    if (!groupRef.current) return;
+    if (rotationY !== undefined) {
+      // Touch-controlled rotation from SceneControls
+      groupRef.current.rotation.y = rotationY;
+    } else if (enableIdleRotation) {
+      // Idle auto-rotation
       groupRef.current.rotation.y += idleRotationSpeed * delta * 60;
     }
   });

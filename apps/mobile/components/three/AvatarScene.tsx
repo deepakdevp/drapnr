@@ -156,6 +156,7 @@ interface SceneContentProps {
   topTexture: string | null;
   bottomTexture: string | null;
   shoesTexture: string | null;
+  rotationY?: number;
   onFrame?: () => void;
 }
 
@@ -164,6 +165,7 @@ function SceneContent({
   topTexture,
   bottomTexture,
   shoesTexture,
+  rotationY,
   onFrame,
 }: SceneContentProps): React.JSX.Element {
   // Tick FPS counter on each frame via useFrame
@@ -193,6 +195,7 @@ function SceneContent({
         topTexture={topTexture}
         bottomTexture={bottomTexture}
         shoesTexture={shoesTexture}
+        rotationY={rotationY}
       />
     </>
   );
@@ -352,6 +355,7 @@ export function AvatarScene({
                   topTexture={topTexture}
                   bottomTexture={bottomTexture}
                   shoesTexture={shoesTexture}
+                  rotationY={controlState.rotationY}
                   onFrame={__DEV__ ? tick : undefined}
                 />
               </Canvas>
