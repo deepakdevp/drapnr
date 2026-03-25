@@ -1,5 +1,6 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
+  Alert,
   Animated,
   Platform,
   ScrollView,
@@ -11,6 +12,11 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { useAuthStore } from '../../../stores/authStore';
+import { useSubscriptionStore } from '../../../stores/subscriptionStore';
+import { useWardrobeStore } from '../../../stores/wardrobeStore';
+import { useCombinationStore } from '../../../stores/combinationStore';
+
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const COLORS = {
   primary: '#FF6B6B',
@@ -20,25 +26,6 @@ const COLORS = {
   surface: '#F8F9FA',
   danger: '#EF4444',
 } as const;
-
-// ── Mock user data ─────────────────────────────────────────────────────────────
-interface UserProfile {
-  name: string;
-  email: string;
-  avatarInitials: string;
-  outfitCount: number;
-  comboCount: number;
-  tier: 'Free' | 'Plus' | 'Pro';
-}
-
-const MOCK_USER: UserProfile = {
-  name: 'Alex Rivera',
-  email: 'alex.rivera@email.com',
-  avatarInitials: 'AR',
-  outfitCount: 12,
-  comboCount: 5,
-  tier: 'Plus',
-};
 
 // ── Tier badge color mapping ───────────────────────────────────────────────────
 const TIER_COLORS: Record<string, string> = {
@@ -56,18 +43,33 @@ interface MenuItem {
   route?: string;
 }
 
-const MENU_ITEMS: MenuItem[] = [
-  { key: 'subscription', label: 'Subscription', type: 'navigate', badge: MOCK_USER.tier, route: '/(tabs)/profile/subscription' },
-  { key: 'body-template', label: 'Body Template', type: 'navigate' },
-  { key: 'notifications', label: 'Notifications', type: 'toggle' },
-  { key: 'dark-mode', label: 'Dark Mode', type: 'toggle' },
-  { key: 'cache', label: 'Cache Management', type: 'navigate' },
-  { key: 'help', label: 'Help & Support', type: 'navigate' },
-  { key: 'delete', label: 'Delete Account', type: 'danger' },
-];
-
 export default function ProfileScreen(): React.JSX.Element {
   const router = useRouter();
+
+  // Real data from stores
+  const user = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
+  const tier = useSubscriptionStore((s) => s.tier);
+  const outfitCount = useWardrobeStore((s) => s.outfits.length);
+  const comboCount = useCombinationStore((s) => s.combinations.length);
+
+  const displayName = user?.displayName ?? 'User';
+  const email = user?.email ?? '';
+  const avatarInitials = useMemo(() => {
+    const parts = displayName.trim().split(/\s+/);
+    return parts.length >= 2
+      ? `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase()
+      : displayName.slice(0, 2).toUpperCase();
+  }, [displayName]);
+  const tierDisplay = tier.charAt(0).toUpperCase() + tier.slice(1);
+
+  const MENU_ITEMS: MenuItem[] = [
+    { key: 'subscription', label: 'Subscription', type: 'navigate', badge: tierDisplay, route: '/(tabs)/profile/subscription' },
+    { key: 'body-template', label: 'Body Template', type: 'navigate', route: '/(auth)/body-template' },
+    { key: 'notifications', label: 'Notifications', type: 'toggle' },
+    { key: 'dark-mode', label: 'Dark Mode', type: 'toggle' },
+    { key: 'delete', label: 'Delete Account', type: 'danger' },
+  ];
 
   const [toggles, setToggles] = useState<Record<string, boolean>>({
     notifications: true,
@@ -94,15 +96,25 @@ export default function ProfileScreen(): React.JSX.Element {
         router.push(item.route as never);
       }
       if (item.type === 'danger') {
-        // In production: show confirmation alert
+        Alert.alert(
+          'Delete Account',
+          'This will permanently delete your account and all data. This cannot be undone.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Delete', style: 'destructive', onPress: () => { /* TODO: implement account deletion */ } },
+          ],
+        );
       }
     },
     [router],
   );
 
   const handleSignOut = useCallback(() => {
-    // In production: sign out logic
-  }, []);
+    Alert.alert('Sign Out', 'Are you sure you want to sign out?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Sign Out', onPress: () => signOut() },
+    ]);
+  }, [signOut]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
@@ -118,21 +130,21 @@ export default function ProfileScreen(): React.JSX.Element {
         {/* Avatar & user info */}
         <View style={styles.userSection}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{MOCK_USER.avatarInitials}</Text>
+            <Text style={styles.avatarText}>{avatarInitials}</Text>
           </View>
-          <Text style={styles.userName}>{MOCK_USER.name}</Text>
-          <Text style={styles.userEmail}>{MOCK_USER.email}</Text>
+          <Text style={styles.userName}>{displayName}</Text>
+          <Text style={styles.userEmail}>{email}</Text>
         </View>
 
         {/* Stats row */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{MOCK_USER.outfitCount}</Text>
+            <Text style={styles.statValue}>{outfitCount}</Text>
             <Text style={styles.statLabel}>Outfits</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{MOCK_USER.comboCount}</Text>
+            <Text style={styles.statValue}>{comboCount}</Text>
             <Text style={styles.statLabel}>Combos</Text>
           </View>
           <View style={styles.statDivider} />
@@ -140,10 +152,10 @@ export default function ProfileScreen(): React.JSX.Element {
             <View
               style={[
                 styles.tierBadge,
-                { backgroundColor: TIER_COLORS[MOCK_USER.tier] },
+                { backgroundColor: TIER_COLORS[tierDisplay] ?? '#9CA3AF' },
               ]}
             >
-              <Text style={styles.tierBadgeText}>{MOCK_USER.tier}</Text>
+              <Text style={styles.tierBadgeText}>{tierDisplay}</Text>
             </View>
             <Text style={styles.statLabel}>Plan</Text>
           </View>
