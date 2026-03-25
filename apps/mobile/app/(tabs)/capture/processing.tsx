@@ -181,10 +181,22 @@ export default function ProcessingScreen(): React.JSX.Element {
         <View style={[styles.progressBarFill, { width: `${percentage}%` }]} />
       </View>
 
+      {/* Error message */}
+      {processingStatus === 'failed' && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Processing Failed</Text>
+          <Text style={styles.errorMessage}>
+            {processingError ?? 'Something went wrong. Please try again.'}
+          </Text>
+        </View>
+      )}
+
       {/* Notification message */}
-      <Text style={styles.notificationText}>
-        You'll get a notification when it's ready
-      </Text>
+      {processingStatus !== 'failed' && (
+        <Text style={styles.notificationText}>
+          You'll get a notification when it's ready
+        </Text>
+      )}
 
       {/* Browse Wardrobe button */}
       <TouchableOpacity
@@ -297,6 +309,26 @@ const styles = StyleSheet.create({
     color: COLORS.secondaryText,
     textAlign: 'center',
     marginBottom: 32,
+    lineHeight: 20,
+  },
+  errorContainer: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 24,
+    width: '100%',
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#DC2626',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: '#991B1B',
+    textAlign: 'center',
     lineHeight: 20,
   },
   browseButton: {

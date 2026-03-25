@@ -124,7 +124,7 @@ export default function SaveComboModal(): React.JSX.Element {
 
       {/* Modal card */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.modalWrapper}
       >
         <Animated.View

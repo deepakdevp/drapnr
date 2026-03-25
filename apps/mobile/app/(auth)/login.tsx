@@ -132,6 +132,8 @@ export default function LoginScreen() {
               onPress={handleSignIn}
               disabled={isLoading || !isValid}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in"
             >
               {isLoading ? (
                 <ActivityIndicator color={c.text.onPrimary} />
@@ -156,6 +158,8 @@ export default function LoginScreen() {
               style={[styles.socialButton, { borderColor: c.surface.border }]}
               onPress={() => handleSocialAuth('Apple')}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with Apple"
             >
               <Text style={[styles.socialIcon, { color: c.text.primary }]}>&#xF8FF;</Text>
               <Text style={[styles.socialButtonText, { color: c.text.primary }]}>
@@ -167,6 +171,8 @@ export default function LoginScreen() {
               style={[styles.socialButton, { borderColor: c.surface.border }]}
               onPress={() => handleSocialAuth('Google')}
               activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel="Sign in with Google"
             >
               <Text style={[styles.socialIcon, { color: '#4285F4' }]}>G</Text>
               <Text style={[styles.socialButtonText, { color: c.text.primary }]}>

@@ -120,7 +120,7 @@ export default function ReviewScreen(): React.JSX.Element {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       {/* Large preview of selected frame */}
       <View style={styles.previewContainer}>
