@@ -10,7 +10,8 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { ThemeContext, lightTheme } from '@/lib/theme';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ThemeContext, lightTheme, darkTheme } from '@/lib/theme';
 import { useAuthStore } from '@/stores/authStore';
 import { useSubscriptionStore } from '@/stores/subscriptionStore';
 import { registerForPushNotifications, setupNotificationListeners } from '@/services/notifications';
@@ -26,6 +27,7 @@ initSentry();
 export default function RootLayout() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const bodyTemplate = useAuthStore((s) => s.bodyTemplate);
   const registerPushToken = useAuthStore((s) => s.registerPushToken);
@@ -61,6 +63,16 @@ export default function RootLayout() {
     }
 
     loadFonts();
+  }, []);
+
+  // ---------------------------------------------------------------------------
+  // Load dark mode preference
+  // ---------------------------------------------------------------------------
+
+  useEffect(() => {
+    AsyncStorage.getItem('@drapnr/dark-mode').then((val) => {
+      if (val === 'true') setIsDarkMode(true);
+    });
   }, []);
 
   // ---------------------------------------------------------------------------
@@ -140,7 +152,7 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root} onLayout={onLayoutReady}>
-      <ThemeContext.Provider value={lightTheme}>
+      <ThemeContext.Provider value={isDarkMode ? darkTheme : lightTheme}>
         <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />

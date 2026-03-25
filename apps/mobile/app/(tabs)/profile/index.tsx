@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { useAuthStore } from '../../../stores/authStore';
 import { useSubscriptionStore } from '../../../stores/subscriptionStore';
@@ -87,7 +88,14 @@ export default function ProfileScreen(): React.JSX.Element {
   }, [fadeAnim]);
 
   const handleToggle = useCallback((key: string) => {
-    setToggles((prev) => ({ ...prev, [key]: !prev[key] }));
+    setToggles((prev) => {
+      const newValue = !prev[key];
+      // Persist dark mode preference
+      if (key === 'dark-mode') {
+        AsyncStorage.setItem('@drapnr/dark-mode', String(newValue));
+      }
+      return { ...prev, [key]: newValue };
+    });
   }, []);
 
   const handleMenuPress = useCallback(
