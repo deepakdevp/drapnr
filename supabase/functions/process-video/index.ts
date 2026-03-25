@@ -52,11 +52,41 @@ serve(async (req: Request) => {
     const body: ProcessRequest = await req.json();
     const { outfit_name, frame_urls } = body;
 
-    if (!outfit_name || !frame_urls?.length) {
+    if (!outfit_name || typeof outfit_name !== "string" || !frame_urls?.length) {
       return new Response(
         JSON.stringify({ error: "outfit_name and frame_urls are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // Input validation
+    if (outfit_name.length > 255) {
+      return new Response(
+        JSON.stringify({ error: "outfit_name must be 255 characters or less" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    if (frame_urls.length > 100) {
+      return new Response(
+        JSON.stringify({ error: "Maximum 100 frames allowed per capture" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // Validate URL formats
+    for (const url of frame_urls) {
+      try {
+        const parsed = new URL(url);
+        if (!["http:", "https:"].includes(parsed.protocol)) {
+          throw new Error("Invalid protocol");
+        }
+      } catch {
+        return new Response(
+          JSON.stringify({ error: `Invalid frame URL: ${url.slice(0, 100)}` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
     }
 
     // Create Supabase client with user's JWT for RLS
@@ -105,6 +135,23 @@ serve(async (req: Request) => {
 
     const tier = userRow.subscription ?? "free";
     const limit = OUTFIT_LIMITS[tier];
+
+    // Rate limiting: max jobs per hour per tier
+    const RATE_LIMITS: Record<string, number> = { free: 5, plus: 15, pro: 50 };
+    const maxPerHour = RATE_LIMITS[tier] ?? 5;
+
+    const { count: recentJobCount } = await supabaseAdmin
+      .from("processing_jobs")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("created_at", new Date(Date.now() - 3600_000).toISOString());
+
+    if ((recentJobCount ?? 0) >= maxPerHour) {
+      return new Response(
+        JSON.stringify({ error: `Rate limit: max ${maxPerHour} jobs per hour for ${tier} tier` }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
 
     // Check outfit capacity
     if (limit !== Infinity) {

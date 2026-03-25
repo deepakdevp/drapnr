@@ -22,17 +22,30 @@ interface GarmentPayload {
   metadata?: Record<string, unknown>;
 }
 
+/** Constant-time string comparison to prevent timing attacks. */
+function timingSafeEqual(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  if (bufA.byteLength !== bufB.byteLength) return false;
+  let result = 0;
+  for (let i = 0; i < bufA.byteLength; i++) {
+    result |= bufA[i] ^ bufB[i];
+  }
+  return result === 0;
+}
+
 serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
   try {
-    // Validate webhook secret
+    // Validate webhook secret (constant-time comparison)
     const webhookSecret = Deno.env.get("PROCESSING_WEBHOOK_SECRET");
     const providedSecret = req.headers.get("X-Webhook-Secret");
 
-    if (!webhookSecret || providedSecret !== webhookSecret) {
+    if (!webhookSecret || !providedSecret || !timingSafeEqual(providedSecret, webhookSecret)) {
       return new Response(
         JSON.stringify({ error: "Invalid webhook secret" }),
         { status: 401, headers: { "Content-Type": "application/json" } },
@@ -60,6 +73,20 @@ serve(async (req: Request) => {
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Idempotency: check if this job has already been finalized
+    const { data: existingJob } = await supabase
+      .from("processing_jobs")
+      .select("status")
+      .eq("id", job_id)
+      .single();
+
+    if (existingJob?.status === "complete" || existingJob?.status === "failed") {
+      return new Response(
+        JSON.stringify({ success: true, skipped: true }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     if (status === "complete") {
       // Update processing job to complete

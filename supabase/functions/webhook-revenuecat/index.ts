@@ -36,17 +36,31 @@ function resolveTier(event: RevenueCatEvent): "plus" | "pro" {
   return "plus";
 }
 
+/** Constant-time string comparison to prevent timing attacks. */
+function timingSafeEqual(a: string, b: string): boolean {
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  if (bufA.byteLength !== bufB.byteLength) return false;
+  let result = 0;
+  for (let i = 0; i < bufA.byteLength; i++) {
+    result |= bufA[i] ^ bufB[i];
+  }
+  return result === 0;
+}
+
 serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
   try {
-    // Validate RevenueCat webhook authorization
+    // Validate RevenueCat webhook authorization (constant-time comparison)
     const rcWebhookSecret = Deno.env.get("REVENUECAT_WEBHOOK_SECRET");
     const authHeader = req.headers.get("Authorization");
+    const expectedHeader = rcWebhookSecret ? `Bearer ${rcWebhookSecret}` : "";
 
-    if (!rcWebhookSecret || authHeader !== `Bearer ${rcWebhookSecret}`) {
+    if (!rcWebhookSecret || !authHeader || !timingSafeEqual(authHeader, expectedHeader)) {
       return new Response(
         JSON.stringify({ error: "Invalid webhook authorization" }),
         { status: 401, headers: { "Content-Type": "application/json" } },
