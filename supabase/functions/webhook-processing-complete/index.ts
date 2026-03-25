@@ -80,7 +80,7 @@ serve(async (req: Request) => {
       const { error: outfitError } = await supabase
         .from("outfits")
         .update({
-          status: "ready",
+          status: "complete",
           thumbnail_url: thumbnail_url ?? null,
         })
         .eq("id", outfit_id);
