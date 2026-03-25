@@ -452,7 +452,7 @@ async def upload_results(
     payload: Dict[str, Any] = {
         "job_id": job_id,
         "user_id": user_id,
-        "status": "completed",
+        "status": "complete",
         "garments": garments,
     }
 
