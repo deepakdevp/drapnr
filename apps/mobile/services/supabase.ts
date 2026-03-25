@@ -563,7 +563,7 @@ export async function uploadFrames(
 
       // Read the local file as base64
       const base64 = await FileSystem.readAsStringAsync(frameUris[i], {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: 'base64' as const,
       });
 
       const arrayBuffer = decode(base64);

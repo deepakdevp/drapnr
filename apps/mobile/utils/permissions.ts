@@ -1,5 +1,5 @@
 import { Alert, Linking, Platform } from 'react-native';
-import * as Camera from 'expo-camera';
+import { Camera } from 'expo-camera';
 import * as Notifications from 'expo-notifications';
 
 /**

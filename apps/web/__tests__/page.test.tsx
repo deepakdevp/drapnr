@@ -68,7 +68,7 @@ describe('Landing Page — Pricing Data', () => {
   it('only Plus tier is popular', () => {
     const popular = pricingPlans.filter((p) => p.isPopular);
     expect(popular).toHaveLength(1);
-    expect(popular[0].tier).toBe('Plus');
+    expect(popular[0]!.tier).toBe('Plus');
   });
 
   it('yearly prices are lower than monthly', () => {
@@ -86,8 +86,8 @@ describe('Landing Page — Pricing Data', () => {
   });
 
   it('outfit limits match subscription tiers', () => {
-    expect(pricingPlans[0].features[0]).toContain('2');
-    expect(pricingPlans[1].features[0]).toContain('20');
-    expect(pricingPlans[2].features[0]).toContain('Unlimited');
+    expect(pricingPlans[0]!.features[0]).toContain('2');
+    expect(pricingPlans[1]!.features[0]).toContain('20');
+    expect(pricingPlans[2]!.features[0]).toContain('Unlimited');
   });
 });

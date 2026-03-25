@@ -86,7 +86,7 @@ let pollAbortController: AbortController | null = null;
 async function readFileAsBase64(uri: string): Promise<string> {
   const fileUri = uri.startsWith('file://') ? uri : `file://${uri}`;
   return FileSystem.readAsStringAsync(fileUri, {
-    encoding: FileSystem.EncodingType.Base64,
+    encoding: 'base64' as const,
   });
 }
 
@@ -219,7 +219,7 @@ export const useCaptureStore = create<CaptureStore>((set, get) => ({
       const totalFrames = frames.length;
 
       for (let i = 0; i < totalFrames; i++) {
-        const frameUri = frames[i];
+        const frameUri = frames[i]!;
         const storagePath = `${userId}/${actualOutfitId}/frame_${String(i + 1).padStart(3, '0')}.jpg`;
 
         try {

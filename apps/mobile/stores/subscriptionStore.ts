@@ -145,7 +145,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
    */
   presentPaywall: async (): Promise<boolean> => {
     try {
-      const paywallResult: PAYWALL_RESULT = await RevenueCatUI.presentPaywall();
+      const paywallResult = await RevenueCatUI.presentPaywall();
 
       switch (paywallResult) {
         case PAYWALL_RESULT.PURCHASED:
@@ -187,7 +187,7 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
       await get().checkEntitlement();
 
       // Listen for subscription changes
-      Purchases.addCustomerInfoUpdateListener((info) => {
+      Purchases.addCustomerInfoUpdateListener((info: CustomerInfo) => {
         const newTier = tierFromCustomerInfo(info);
         const proEntitlement = info.entitlements.active[ENTITLEMENT_IDS.pro];
         const plusEntitlement = info.entitlements.active[ENTITLEMENT_IDS.plus];
