@@ -61,7 +61,7 @@ type CaptureStore = CaptureState & CaptureActions;
 // Constants
 // -----------------------------------------------------------------------------
 
-const FRAMES_BUCKET = 'capture-frames';
+const FRAMES_BUCKET = 'frames';
 
 const INITIAL_STATE: CaptureState = {
   isRecording: false,

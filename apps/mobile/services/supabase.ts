@@ -542,8 +542,8 @@ export async function fetchProcessingJob(jobId: string): Promise<ApiResponse<Pro
 // Storage Helpers
 // -----------------------------------------------------------------------------
 
-const FRAMES_BUCKET = 'capture-frames';
-const TEXTURES_BUCKET = 'garment-textures';
+const FRAMES_BUCKET = 'frames';
+const TEXTURES_BUCKET = 'textures';
 const THUMBNAILS_BUCKET = 'thumbnails';
 
 /**
