@@ -1,5 +1,7 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   Animated,
   Dimensions,
   Platform,
@@ -10,6 +12,8 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+
+import { useSubscriptionStore } from '../../../stores/subscriptionStore';
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
 const COLORS = {
@@ -82,23 +86,45 @@ export default function SubscriptionScreen(): React.JSX.Element {
   const router = useRouter();
   const [isYearly, setIsYearly] = useState<boolean>(false);
 
+  // Real subscription state
+  const currentTier = useSubscriptionStore((s) => s.tier);
+  const isLoading = useSubscriptionStore((s) => s.isLoading);
+  const error = useSubscriptionStore((s) => s.error);
+  const fetchOfferings = useSubscriptionStore((s) => s.fetchOfferings);
+  const purchase = useSubscriptionStore((s) => s.purchase);
+  const restorePurchases = useSubscriptionStore((s) => s.restorePurchases);
+  const offerings = useSubscriptionStore((s) => s.offerings);
+
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  React.useEffect(() => {
+  useEffect(() => {
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 400,
       useNativeDriver: true,
     }).start();
-  }, [fadeAnim]);
+    fetchOfferings();
+  }, [fadeAnim, fetchOfferings]);
 
-  const handleUpgrade = useCallback((plan: PlanInfo) => {
-    // In production: trigger IAP flow
-  }, []);
+  useEffect(() => {
+    if (error) Alert.alert('Subscription Error', error);
+  }, [error]);
 
-  const handleRestore = useCallback(() => {
-    // In production: restore purchases
-  }, []);
+  const handleUpgrade = useCallback(async (plan: PlanInfo) => {
+    // Try RevenueCat offering first, fall back to presentPaywall
+    const offering = offerings.find((o) => o.tier === plan.key);
+    if (offering) {
+      await purchase(offering.id);
+    } else {
+      const purchased = await useSubscriptionStore.getState().presentPaywall();
+      if (!purchased) router.push('/paywall' as never);
+    }
+  }, [offerings, purchase, router]);
+
+  const handleRestore = useCallback(async () => {
+    await restorePurchases();
+    Alert.alert('Restore Complete', 'Your purchases have been restored.');
+  }, [restorePurchases]);
 
   return (
     <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
