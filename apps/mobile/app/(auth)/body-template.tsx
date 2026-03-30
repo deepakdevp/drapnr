@@ -13,7 +13,6 @@ import {
   Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/lib/theme';
@@ -52,7 +51,6 @@ const GENDER_OPTIONS: { value: Gender; label: string }[] = [
 
 export default function BodyTemplateScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const { setBodyTemplate, isLoading } = useAuthStore();
 
   const [selectedGender, setSelectedGender] = useState<Gender>('female');
@@ -60,10 +58,12 @@ export default function BodyTemplateScreen() {
 
   const c = theme.colors;
 
-  const handleContinue = () => {
+  const handleContinue = async () => {
     if (!selectedBodyType) return;
-    setBodyTemplate({ gender: selectedGender, bodyType: selectedBodyType });
-    router.replace('/(tabs)/wardrobe');
+    // Await the DB save so _layout.tsx routing fires only after bodyTemplate
+    // is persisted. The routing effect in _layout.tsx handles navigation once
+    // bodyTemplate becomes non-null.
+    await setBodyTemplate({ gender: selectedGender, bodyType: selectedBodyType });
   };
 
   const options = BODY_OPTIONS[selectedGender];

@@ -18,14 +18,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link, useRouter } from 'expo-router';
+import { Link } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/lib/theme';
 
 export default function SignUpScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const { signUp, isLoading } = useAuthStore();
 
   const [name, setName] = useState('');
@@ -33,6 +32,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [focusedField, setFocusedField] = useState<string | null>(null);
+
 
   const isValid =
     name.trim().length >= 2 &&
@@ -45,11 +45,12 @@ export default function SignUpScreen() {
       Alert.alert('Invalid Input', 'Please fill all fields and accept the terms.');
       return;
     }
-    try {
-      await signUp(name.trim(), email.trim(), password);
-      router.replace('/(auth)/onboarding');
-    } catch {
-      Alert.alert('Sign Up Failed', 'Please try again.');
+    await signUp(name.trim(), email.trim(), password);
+    // signUp sets error state on failure — it never throws.
+    // On success, _layout.tsx routing handles navigation automatically.
+    const authError = useAuthStore.getState().error;
+    if (authError) {
+      Alert.alert('Sign Up Failed', authError);
     }
   };
 

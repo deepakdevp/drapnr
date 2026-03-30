@@ -17,14 +17,13 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link, useRouter } from 'expo-router';
+import { Link } from 'expo-router';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthStore } from '@/stores/authStore';
 import { useTheme } from '@/lib/theme';
 
 export default function LoginScreen() {
   const theme = useTheme();
-  const router = useRouter();
   const { signIn, isLoading } = useAuthStore();
 
   const [email, setEmail] = useState('');
@@ -39,11 +38,12 @@ export default function LoginScreen() {
       Alert.alert('Invalid Input', 'Please enter a valid email and password (6+ characters).');
       return;
     }
-    try {
-      await signIn(email, password);
-      router.replace('/(auth)/onboarding');
-    } catch {
-      Alert.alert('Sign In Failed', 'Please check your credentials and try again.');
+    await signIn(email, password);
+    // signIn sets error state on failure — it never throws.
+    // On success, _layout.tsx routing handles navigation automatically.
+    const authError = useAuthStore.getState().error;
+    if (authError) {
+      Alert.alert('Sign In Failed', authError);
     }
   };
 

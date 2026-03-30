@@ -27,6 +27,7 @@ initSentry();
 export default function RootLayout() {
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const [authInitialized, setAuthInitialized] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const bodyTemplate = useAuthStore((s) => s.bodyTemplate);
@@ -80,7 +81,7 @@ export default function RootLayout() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    initializeAuth();
+    initializeAuth().then(() => setAuthInitialized(true));
   }, [initializeAuth]);
 
   useEffect(() => {
@@ -128,7 +129,8 @@ export default function RootLayout() {
   // ---------------------------------------------------------------------------
 
   useEffect(() => {
-    if (!appReady) return;
+    // Wait for both fonts and auth initialization before routing
+    if (!appReady || !authInitialized) return;
 
     const inAuthGroup = segments[0] === '(auth)';
     const hasCompletedOnboarding = bodyTemplate !== null;
@@ -140,7 +142,7 @@ export default function RootLayout() {
     } else if (isAuthenticated && hasCompletedOnboarding && inAuthGroup) {
       router.replace('/(tabs)/wardrobe');
     }
-  }, [isAuthenticated, bodyTemplate, segments, appReady]);
+  }, [isAuthenticated, bodyTemplate, segments, appReady, authInitialized]);
 
   // ---------------------------------------------------------------------------
   // Render
