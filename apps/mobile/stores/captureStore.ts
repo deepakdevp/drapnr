@@ -199,7 +199,7 @@ export const useCaptureStore = create<CaptureStore>((set, get) => ({
         .insert({
           user_id: userId,
           name: outfitName,
-          status: 'pending',
+          status: 'processing',
           captured_at: new Date().toISOString(),
         })
         .select()

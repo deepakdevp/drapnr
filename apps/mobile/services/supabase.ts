@@ -113,6 +113,13 @@ export async function signUpWithEmail(
 
     if (insertError) {
       log.error('Failed to create user profile:', insertError.message);
+      return {
+        data: null,
+        error: {
+          code: 'PROFILE_CREATE_ERROR',
+          message: `Account created but profile setup failed: ${insertError.message}`,
+        },
+      };
     }
 
     return {

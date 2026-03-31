@@ -99,7 +99,7 @@ export default function WardrobeScreen() {
                 {item.name}
               </Text>
               <Text style={[styles.cardDate, { color: c.text.tertiary }]}>
-                {formatDate(item.createdAt)}
+                {formatDate(item.capturedAt)}
               </Text>
             </View>
           </TouchableOpacity>

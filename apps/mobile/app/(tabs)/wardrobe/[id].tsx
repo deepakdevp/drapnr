@@ -197,7 +197,7 @@ export default function OutfitDetailScreen() {
             </TouchableOpacity>
           )}
           <Text style={[styles.outfitDate, { color: c.text.tertiary }]}>
-            Captured {formatDate(outfit.createdAt)}
+            Captured {formatDate(outfit.capturedAt)}
           </Text>
         </Animated.View>
 

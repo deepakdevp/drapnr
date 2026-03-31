@@ -108,6 +108,16 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
       }
     } catch (err: any) {
       log.error('initialize error:', err.message);
+      // Network/fetch errors — don't silently treat as "not authenticated".
+      // Surface the error so the UI can inform the user rather than
+      // redirecting them to login with no explanation.
+      const isNetworkError =
+        err?.message?.toLowerCase().includes('network') ||
+        err?.message?.toLowerCase().includes('fetch') ||
+        err?.name === 'TypeError';
+      if (isNetworkError) {
+        set({ error: 'Unable to connect. Please check your network and try again.' });
+      }
     } finally {
       set({ isLoading: false });
     }
