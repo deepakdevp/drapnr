@@ -1,5 +1,6 @@
 import React, { useCallback, useRef } from 'react';
 import {
+  Alert,
   Animated,
   Dimensions,
   Platform,
@@ -80,13 +81,27 @@ export default function PaywallModal(): React.JSX.Element {
   }, [router, slideAnim, backdropOpacity]);
 
   const handleStartTrial = useCallback(async () => {
-    // Use RevenueCat native paywall UI
     const { useSubscriptionStore } = await import('../stores/subscriptionStore');
-    const purchased = await useSubscriptionStore.getState().presentPaywall();
+    const store = useSubscriptionStore.getState();
+
+    // RevenueCat is unavailable in Expo Go / web — navigate to full plans page
+    if (!store.isRevenueCatAvailable()) {
+      Alert.alert(
+        'Subscriptions Unavailable',
+        'In-app purchases are not available in this build. Please use the published App Store version to subscribe.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'View Plans', onPress: handleViewAllPlans },
+        ],
+      );
+      return;
+    }
+
+    const purchased = await store.presentPaywall();
     if (purchased) {
       dismiss();
     }
-  }, [dismiss]);
+  }, [dismiss, handleViewAllPlans]);
 
   const handleViewAllPlans = useCallback(() => {
     dismiss();

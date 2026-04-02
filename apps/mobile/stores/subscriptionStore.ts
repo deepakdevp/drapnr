@@ -57,6 +57,7 @@ interface SubscriptionActions {
   checkEntitlement: () => Promise<void>;
   getOutfitLimit: () => number;
   canAddOutfit: (currentCount: number) => boolean;
+  isRevenueCatAvailable: () => boolean;
   syncTierToSupabase: (tier: SubscriptionTier) => Promise<void>;
   clearError: () => void;
 }
@@ -353,6 +354,12 @@ export const useSubscriptionStore = create<SubscriptionStore>((set, get) => ({
     const limit = OUTFIT_LIMITS[get().tier];
     return currentCount < limit;
   },
+
+  /**
+   * Returns true when the RevenueCat SDK is loaded (native builds).
+   * Returns false in Expo Go / web where the SDK is unavailable.
+   */
+  isRevenueCatAvailable: () => Purchases !== null,
 
   /**
    * Syncs the subscription tier to the Supabase users table.
