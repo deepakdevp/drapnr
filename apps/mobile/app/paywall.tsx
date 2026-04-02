@@ -43,6 +43,21 @@ const COMPARISON: ComparisonRow[] = [
 export default function PaywallModal(): React.JSX.Element {
   const router = useRouter();
 
+  // Fetch live offerings so we display real prices instead of hardcoded values
+  const [plusPrice, setPlusPrice] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    import('../stores/subscriptionStore').then(({ useSubscriptionStore }) => {
+      const store = useSubscriptionStore.getState();
+      if (!store.isRevenueCatAvailable()) return;
+      store.fetchOfferings().then(() => {
+        const plusProduct = useSubscriptionStore
+          .getState()
+          .offerings.find((o) => o.tier === 'plus');
+        if (plusProduct) setPlusPrice(plusProduct.priceString);
+      });
+    });
+  }, []);
+
   const slideAnim = useRef(new Animated.Value(Dimensions.get('window').height)).current;
   const backdropOpacity = useRef(new Animated.Value(0)).current;
 
@@ -202,7 +217,7 @@ export default function PaywallModal(): React.JSX.Element {
           >
             <Text style={styles.trialButtonText}>Start Free Trial</Text>
             <Text style={styles.trialButtonSub}>
-              7 days free, then $4.99/mo
+              {plusPrice ? `7 days free, then ${plusPrice}/mo` : '7 days free — see plans for pricing'}
             </Text>
           </TouchableOpacity>
 
