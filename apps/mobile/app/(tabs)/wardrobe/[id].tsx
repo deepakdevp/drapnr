@@ -4,7 +4,7 @@
 // Shows outfit name (editable), 3D avatar placeholder, garment cards, delete.
 // =============================================================================
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -26,8 +26,14 @@ export default function OutfitDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const outfit = useWardrobeStore((s) => s.outfits.find((o) => o.id === id));
+  const garments = useWardrobeStore((s) => s.garments.filter((g) => g.outfitId === id));
+  const fetchGarments = useWardrobeStore((s) => s.fetchGarments);
   const deleteOutfit = useWardrobeStore((s) => s.deleteOutfit);
   const updateOutfitName = useWardrobeStore((s) => s.updateOutfitName);
+
+  useEffect(() => {
+    if (id) fetchGarments(id);
+  }, [id]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(outfit?.name ?? '');
@@ -89,12 +95,12 @@ export default function OutfitDetailScreen() {
   // Garment helpers
   // ---------------------------------------------------------------------------
 
-  const getGarmentByType = (type: string): Garment | undefined =>
-    outfit.garments.find((g) => g.type === type);
+  const getGarmentByCategory = (category: string): Garment | undefined =>
+    garments.find((g) => g.category === category);
 
-  const top = getGarmentByType('top');
-  const bottom = getGarmentByType('bottom');
-  const shoes = getGarmentByType('shoes');
+  const top = getGarmentByCategory('top');
+  const bottom = getGarmentByCategory('bottom');
+  const shoes = getGarmentByCategory('shoes');
   const garmentCards = [
     { label: 'Top', garment: top },
     { label: 'Bottom', garment: bottom },
@@ -221,7 +227,7 @@ export default function OutfitDetailScreen() {
                   style={[
                     styles.garmentThumbnail,
                     {
-                      backgroundColor: garment?.color ?? c.neutral.gray200,
+                      backgroundColor: garment?.dominantColor ?? c.neutral.gray200,
                       borderColor: c.surface.border,
                     },
                   ]}
@@ -230,7 +236,7 @@ export default function OutfitDetailScreen() {
                   style={[styles.garmentName, { color: c.text.primary }]}
                   numberOfLines={1}
                 >
-                  {garment?.name ?? 'None'}
+                  {garment?.metadata?.brand ?? garment?.metadata?.color ?? (garment ? label : 'None')}
                 </Text>
                 <Text style={[styles.garmentType, { color: c.text.tertiary }]}>{label}</Text>
               </Animated.View>
