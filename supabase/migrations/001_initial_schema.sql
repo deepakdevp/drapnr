@@ -42,8 +42,8 @@ CREATE TABLE outfits (
   user_id       uuid        NOT NULL REFERENCES users ON DELETE CASCADE,
   name          text        NOT NULL,
   thumbnail_url text,
-  status        text        DEFAULT 'processing'
-                            CHECK (status IN ('processing', 'ready', 'failed')),
+  status        text        DEFAULT 'pending'
+                            CHECK (status IN ('pending', 'processing', 'complete', 'failed')),
   captured_at   timestamptz DEFAULT now(),
   created_at    timestamptz DEFAULT now(),
   updated_at    timestamptz DEFAULT now()
