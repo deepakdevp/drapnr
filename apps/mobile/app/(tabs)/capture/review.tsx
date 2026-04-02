@@ -83,8 +83,9 @@ export default function ReviewScreen(): React.JSX.Element {
         return;
       }
 
-      // Navigate to processing screen
-      router.push('/(tabs)/capture/processing');
+      // Replace so the review screen is removed from the stack — prevents
+      // the user pressing back to re-submit and avoids stale state on return.
+      router.replace('/(tabs)/capture/processing');
     } catch (error) {
       Alert.alert(
         'Error',

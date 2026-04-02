@@ -49,6 +49,7 @@ export default function ProcessingScreen(): React.JSX.Element {
   const processingProgress = useCaptureStore((s) => s.processingProgress);
   const processingError = useCaptureStore((s) => s.error);
   const pollProcessingStatus = useCaptureStore((s) => s.pollProcessingStatus);
+  const clearError = useCaptureStore((s) => s.clearError);
 
   const [currentStep, setCurrentStep] = useState<number>(0);
   const [percentage, setPercentage] = useState<number>(0);
@@ -57,6 +58,11 @@ export default function ProcessingScreen(): React.JSX.Element {
   const spinAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Clear any stale error from a previous capture on mount ────────────────
+  useEffect(() => {
+    clearError();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Entrance fade ─────────────────────────────────────────────────────────
   useEffect(() => {
