@@ -8,6 +8,8 @@
 import { create } from 'zustand';
 import * as FileSystem from 'expo-file-system';
 
+const FRAMES_CACHE_DIR = `${FileSystem.cacheDirectory}drapnr-frames/`;
+
 import type { ProcessingStatus } from '../types';
 import { supabase } from '../services/supabase';
 import {
@@ -257,6 +259,16 @@ export const useCaptureStore = create<CaptureStore>((set, get) => ({
         uploadedFramePaths: uploadedPaths,
         processingProgress: 50,
       });
+
+      // Delete local frame files now that they're safely in Supabase Storage
+      try {
+        const dirInfo = await FileSystem.getInfoAsync(FRAMES_CACHE_DIR);
+        if (dirInfo.exists) {
+          await FileSystem.deleteAsync(FRAMES_CACHE_DIR, { idempotent: true });
+        }
+      } catch {
+        // Best-effort cleanup — don't fail the upload flow
+      }
 
       return { success: true };
     } catch (error) {
